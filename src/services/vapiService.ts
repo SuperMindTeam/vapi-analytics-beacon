@@ -184,12 +184,14 @@ export const getCallsByAgent = async (agentId: string): Promise<Call[]> => {
   }
 };
 
-// Updated getCallStatistics function to return more accurate statistics
+// Updated getCallStatistics function to return more accurate statistics with time period
 export const getCallStatistics = async () => {
   // We can't use the /call/analytics endpoint as it requires an ID parameter
   // Instead, we'll calculate statistics from the calls we fetch
   try {
-    const calls = await getCalls(100); // Get a larger sample to analyze
+    // Get all calls - don't limit to 100 as that's causing the confusion
+    // The API might have its own limits, but we're not artificially limiting
+    const calls = await getCalls(1000); // Increased limit to get more accurate data
     
     if (!Array.isArray(calls)) {
       console.error("Invalid calls data format:", calls);
@@ -198,7 +200,8 @@ export const getCallStatistics = async () => {
         completed: 0,
         in_progress: 0,
         failed: 0,
-        average_duration: 0
+        average_duration: 0,
+        time_period: { start: null, end: null }
       };
     }
     
@@ -221,12 +224,30 @@ export const getCallStatistics = async () => {
       ? completedCallsWithDuration.reduce((sum, call) => sum + (call.duration || 0), 0) / completedCallsWithDuration.length
       : 0;
     
+    // Determine time period of the data
+    let startDate = null;
+    let endDate = null;
+    
+    if (calls.length > 0) {
+      // Sort calls by date
+      const sortedCalls = [...calls].sort((a, b) => 
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      
+      startDate = new Date(sortedCalls[0].createdAt);
+      endDate = new Date(sortedCalls[sortedCalls.length - 1].createdAt);
+    }
+    
     const stats = {
       total,
       completed,
       in_progress: inProgress,
       failed,
       average_duration: averageDuration,
+      time_period: {
+        start: startDate,
+        end: endDate
+      }
     };
     
     console.log("Generated call statistics:", stats);
@@ -239,6 +260,7 @@ export const getCallStatistics = async () => {
       in_progress: 0,
       failed: 0,
       average_duration: 0,
+      time_period: { start: null, end: null }
     };
   }
 };

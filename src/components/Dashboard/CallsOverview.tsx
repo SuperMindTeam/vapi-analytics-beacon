@@ -17,7 +17,7 @@ import {
   ResponsiveContainer 
 } from "recharts";
 import { formatNumber, formatDuration } from "@/utils/formatters";
-import { ArrowUp, ArrowDown, Phone, AlertCircle } from "lucide-react";
+import { ArrowUp, ArrowDown, Phone, AlertCircle, Calendar } from "lucide-react";
 import { getCalls, getCallStatistics } from "@/services/vapiService";
 import { format, subDays } from "date-fns";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -27,6 +27,10 @@ interface CallStats {
   completedCalls: number;
   avgDuration: number;
   callsChange: number;
+  timePeriod?: {
+    start: Date | null;
+    end: Date | null;
+  };
 }
 
 interface CallChartData {
@@ -41,6 +45,10 @@ const CallsOverview: React.FC = () => {
     completedCalls: 0,
     avgDuration: 0,
     callsChange: 0,
+    timePeriod: {
+      start: null,
+      end: null
+    }
   });
   const [callsData, setCallsData] = useState<CallChartData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -84,6 +92,7 @@ const CallsOverview: React.FC = () => {
           completedCalls: stats.completed,
           avgDuration: stats.average_duration,
           callsChange: calculateCallsChange(calls),
+          timePeriod: stats.time_period
         });
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -149,6 +158,14 @@ const CallsOverview: React.FC = () => {
     return Math.round(((last7Days - previous7Days) / previous7Days) * 100);
   };
   
+  // Format date range for display
+  const formatDateRange = () => {
+    const { start, end } = callStats.timePeriod || { start: null, end: null };
+    if (!start || !end) return "No date range available";
+    
+    return `${format(start, 'MMM d, yyyy')} - ${format(end, 'MMM d, yyyy')}`;
+  };
+  
   if (error) {
     return (
       <Alert variant="destructive" className="mb-6">
@@ -161,6 +178,14 @@ const CallsOverview: React.FC = () => {
   
   return (
     <div className="space-y-6">
+      {/* Date Range Display */}
+      {!isLoading && callStats.timePeriod?.start && callStats.timePeriod?.end && (
+        <div className="flex items-center text-sm text-muted-foreground mb-2">
+          <Calendar className="h-4 w-4 mr-1" />
+          <span>Data for period: {formatDateRange()}</span>
+        </div>
+      )}
+      
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Total Calls Card */}
         <Card>
