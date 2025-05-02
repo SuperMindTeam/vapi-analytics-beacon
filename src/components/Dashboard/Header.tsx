@@ -1,10 +1,13 @@
 
 import React from "react";
-import { Bell, Search, User } from "lucide-react";
+import { Bell, Search, User, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Header: React.FC = () => {
+  const { signOut, user } = useAuth();
+  
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-3">
       <div className="flex items-center justify-between">
@@ -13,6 +16,7 @@ const Header: React.FC = () => {
           <h1 className="text-xl font-semibold">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
             Welcome back to your VAPI dashboard
+            {user?.email && <>, {user.email}</>}
           </p>
         </div>
 
@@ -30,6 +34,15 @@ const Header: React.FC = () => {
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="h-5 w-5" />
             <span className="absolute top-1 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+          </Button>
+          
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => signOut()} 
+            title="Sign out"
+          >
+            <LogOut className="h-5 w-5" />
           </Button>
           
           <div className="flex items-center">
