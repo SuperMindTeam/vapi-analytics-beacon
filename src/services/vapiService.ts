@@ -32,7 +32,7 @@ interface Agent {
   status: string;
   created_at: string;
   active_calls: number;
-  org_id?: string; // Added org_id for our database integration
+  org_id?: string;
 }
 
 // Updated interface to match the API request structure
@@ -48,7 +48,7 @@ interface AgentCreateParams {
     voiceId: string;
   };
   firstMessage?: string;
-  org_id?: string; // Added org_id for our database integration
+  org_id?: string;
 }
 
 // Updated interface to make data optional but properly typed

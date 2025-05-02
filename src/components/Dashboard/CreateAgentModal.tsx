@@ -19,6 +19,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge"; // Added missing Badge import
 import { createAgent } from "@/services/vapiService";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
