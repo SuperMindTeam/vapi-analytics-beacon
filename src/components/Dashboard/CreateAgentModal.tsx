@@ -59,8 +59,12 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
 
   // Create agent mutation using Tanstack Query
   const createAgentMutation = useMutation({
-    mutationFn: (agentData: { name: string; voice_id: string; prompt: string }) => 
-      createAgent(agentData),
+    mutationFn: (agentData: { 
+      name: string; 
+      voiceId: string; 
+      provider: string; 
+      messages: Array<{role: string; content: string}>
+    }) => createAgent(agentData),
     onSuccess: () => {
       // Reset form
       setName("");
@@ -86,11 +90,17 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
       return;
     }
     
-    // Create agent with VAPI - using the API's expected field names
+    // Create agent with updated fields for VAPI API
     createAgentMutation.mutate({
       name,
-      voice_id: voiceId,
-      prompt
+      voiceId,
+      provider: "11labs",
+      messages: [
+        {
+          role: "system",
+          content: prompt
+        }
+      ]
     });
   };
 
