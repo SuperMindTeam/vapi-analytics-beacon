@@ -40,6 +40,7 @@ interface AgentCreateParams {
   prompt: string;
 }
 
+// Updated interface to make data optional but properly typed
 interface VapiResponse<T> {
   data?: T;
   total?: number;
@@ -84,8 +85,18 @@ const fetchFromVapi = async <T>(
 // Agent related API calls - using /agent endpoint
 export const getAgents = async (): Promise<Agent[]> => {
   try {
+    // Explicitly type the response to handle both formats
     const response = await fetchFromVapi<Agent[] | VapiResponse<Agent[]>>("/agent");
-    return Array.isArray(response) ? response : (response.data || []);
+    
+    // Properly check and extract data based on response structure
+    if (Array.isArray(response)) {
+      return response;
+    } else if (response && 'data' in response && Array.isArray(response.data)) {
+      return response.data;
+    } else {
+      console.warn("Unexpected response format from getAgents:", response);
+      return [];
+    }
   } catch (error) {
     console.error("Failed to fetch agents:", error);
     return [];
@@ -99,7 +110,14 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
       body: JSON.stringify(agentData),
     });
     
-    const agent = 'id' in response ? response : (response.data as Agent);
+    // Properly check and extract agent based on response structure
+    let agent: Agent | null = null;
+    
+    if (response && 'id' in response) {
+      agent = response as Agent;
+    } else if (response && 'data' in response) {
+      agent = response.data as Agent;
+    }
     
     if (agent) {
       toast.success("Agent created successfully!");
@@ -128,9 +146,18 @@ export const deleteAgent = async (agentId: string): Promise<boolean> => {
 // Call related API calls - using /call endpoint
 export const getCalls = async (limit = 10): Promise<Call[]> => {
   try {
+    // Explicitly type the response to handle both formats
     const response = await fetchFromVapi<Call[] | VapiResponse<Call[]>>(`/call?limit=${limit}`);
-    // Handle both array response and data property response
-    return Array.isArray(response) ? response : (response.data as Call[] || []);
+    
+    // Properly check and extract data based on response structure
+    if (Array.isArray(response)) {
+      return response;
+    } else if (response && 'data' in response && Array.isArray(response.data)) {
+      return response.data;
+    } else {
+      console.warn("Unexpected response format from getCalls:", response);
+      return [];
+    }
   } catch (error) {
     console.error("Failed to fetch calls:", error);
     return [];
@@ -139,9 +166,18 @@ export const getCalls = async (limit = 10): Promise<Call[]> => {
 
 export const getCallsByAgent = async (agentId: string): Promise<Call[]> => {
   try {
+    // Explicitly type the response to handle both formats
     const response = await fetchFromVapi<Call[] | VapiResponse<Call[]>>(`/call?agent_id=${agentId}`);
-    // Handle both array response and data property response
-    return Array.isArray(response) ? response : (response.data as Call[] || []);
+    
+    // Properly check and extract data based on response structure
+    if (Array.isArray(response)) {
+      return response;
+    } else if (response && 'data' in response && Array.isArray(response.data)) {
+      return response.data;
+    } else {
+      console.warn("Unexpected response format from getCallsByAgent:", response);
+      return [];
+    }
   } catch (error) {
     console.error("Failed to fetch agent calls:", error);
     return [];
@@ -193,8 +229,18 @@ export const getCallStatistics = async () => {
 // Voice options - using /voice endpoint
 export const getVoices = async () => {
   try {
-    const response = await fetchFromVapi<any[]>("/voice");
-    return Array.isArray(response) ? response : (response.data || []);
+    // Explicitly type the response to handle both formats
+    const response = await fetchFromVapi<any[] | VapiResponse<any[]>>("/voice");
+    
+    // Properly check and extract data based on response structure
+    if (Array.isArray(response)) {
+      return response;
+    } else if (response && 'data' in response && Array.isArray(response.data)) {
+      return response.data;
+    } else {
+      console.warn("Unexpected response format from getVoices:", response);
+      return [];
+    }
   } catch (error) {
     console.error("Failed to fetch voices:", error);
     return [];
