@@ -5,13 +5,11 @@ import {
   LayoutDashboard, 
   Phone, 
   Users, 
-  Settings, 
-  LogOut,
+  Settings,
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -20,7 +18,6 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
   const location = useLocation();
-  const { signOut } = useAuth();
   
   const menuItems = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -76,17 +73,6 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
             })}
           </ul>
         </nav>
-
-        {/* Footer/logout */}
-        <div className="p-4 mt-auto">
-          <button
-            onClick={() => signOut()}
-            className="flex items-center w-full px-4 py-3 text-sm rounded-lg hover:bg-white/10 transition-colors"
-          >
-            <LogOut size={20} />
-            {!collapsed && <span className="ml-3">Log Out</span>}
-          </button>
-        </div>
       </div>
     </aside>
   );
