@@ -3,7 +3,7 @@ import { toast } from "sonner";
 
 // API key should be stored securely in production
 const VAPI_API_KEY = "86a2dd3f-cb06-4544-85c5-cde554064763";
-const VAPI_API_URL = "https://api.vapi.ai";
+const VAPI_API_URL = "https://api.vapi.ai/api";  // Updated API URL path
 
 interface Call {
   id: string;

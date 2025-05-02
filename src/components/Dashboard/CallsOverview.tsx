@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { 
   Card, 
   CardContent, 
@@ -18,25 +18,112 @@ import {
 } from "recharts";
 import { formatNumber, formatDuration } from "@/utils/formatters";
 import { ArrowUp, ArrowDown, Phone } from "lucide-react";
+import { getCalls, getCallStatistics } from "@/services/vapiService";
+import { format, subDays } from "date-fns";
 
-// Sample data - would be replaced by actual data from the API
-const sampleCallsData = [
-  { day: "Mon", calls: 12 },
-  { day: "Tue", calls: 19 },
-  { day: "Wed", calls: 15 },
-  { day: "Thu", calls: 22 },
-  { day: "Fri", calls: 30 },
-  { day: "Sat", calls: 18 },
-  { day: "Sun", calls: 14 },
-];
+interface CallStats {
+  totalCalls: number;
+  completedCalls: number;
+  avgDuration: number;
+  callsChange: number;
+}
+
+interface CallChartData {
+  day: string;
+  calls: number;
+  date: Date;
+}
 
 const CallsOverview: React.FC = () => {
-  // This would be fetched from the API in a real implementation
-  const callStats = {
-    totalCalls: 130,
-    completedCalls: 115,
-    avgDuration: 182, // in seconds
-    callsChange: 12, // percentage increase from previous period
+  const [callStats, setCallStats] = useState<CallStats>({
+    totalCalls: 0,
+    completedCalls: 0,
+    avgDuration: 0,
+    callsChange: 0,
+  });
+  const [callsData, setCallsData] = useState<CallChartData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        // Fetch calls data
+        const calls = await getCalls(100); // Get a larger sample to analyze
+        
+        // Get call statistics
+        const stats = await getCallStatistics();
+        
+        // Process calls data for stats and chart
+        processCallsData(calls);
+        
+        // Set statistics
+        setCallStats({
+          totalCalls: stats.total || calls.length,
+          completedCalls: stats.completed || calls.filter(call => call.status === "completed").length,
+          avgDuration: stats.average_duration || calculateAverageDuration(calls),
+          callsChange: calculateCallsChange(calls),
+        });
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const processCallsData = (calls: any[]) => {
+    // Create a map to group calls by day
+    const lastSevenDays = Array.from({ length: 7 }, (_, i) => {
+      const date = subDays(new Date(), 6 - i);
+      return {
+        day: format(date, 'EEE'),
+        date: date,
+        calls: 0
+      };
+    });
+
+    // Count calls per day
+    calls.forEach(call => {
+      const callDate = new Date(call.created_at);
+      const dayIndex = lastSevenDays.findIndex(day => 
+        format(day.date, 'yyyy-MM-dd') === format(callDate, 'yyyy-MM-dd')
+      );
+      
+      if (dayIndex >= 0) {
+        lastSevenDays[dayIndex].calls += 1;
+      }
+    });
+
+    setCallsData(lastSevenDays);
+  };
+
+  const calculateAverageDuration = (calls: any[]): number => {
+    const completedCalls = calls.filter(call => call.status === "completed" && call.duration);
+    if (completedCalls.length === 0) return 0;
+    
+    const totalDuration = completedCalls.reduce((sum, call) => sum + (call.duration || 0), 0);
+    return totalDuration / completedCalls.length;
+  };
+
+  const calculateCallsChange = (calls: any[]): number => {
+    // Calculate percentage change compared to previous period
+    const today = new Date();
+    const last7Days = calls.filter(call => {
+      const callDate = new Date(call.created_at);
+      return (today.getTime() - callDate.getTime()) / (1000 * 3600 * 24) <= 7;
+    }).length;
+    
+    const previous7Days = calls.filter(call => {
+      const callDate = new Date(call.created_at);
+      const dayDiff = (today.getTime() - callDate.getTime()) / (1000 * 3600 * 24);
+      return dayDiff > 7 && dayDiff <= 14;
+    }).length;
+    
+    if (previous7Days === 0) return last7Days > 0 ? 100 : 0;
+    return Math.round(((last7Days - previous7Days) / previous7Days) * 100);
   };
   
   return (
@@ -47,13 +134,13 @@ const CallsOverview: React.FC = () => {
           <CardHeader className="pb-2">
             <CardDescription>Total Calls</CardDescription>
             <CardTitle className="text-3xl font-bold">
-              {formatNumber(callStats.totalCalls)}
+              {isLoading ? "Loading..." : formatNumber(callStats.totalCalls)}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-sm flex items-center">
-              <span className={callStats.callsChange >= 0 ? "stat-trend-up" : "stat-trend-down"}>
-                {callStats.callsChange >= 0 ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
+              <span className={callStats.callsChange >= 0 ? "text-green-500 flex items-center" : "text-red-500 flex items-center"}>
+                {callStats.callsChange >= 0 ? <ArrowUp size={16} className="mr-1" /> : <ArrowDown size={16} className="mr-1" />}
                 {Math.abs(callStats.callsChange)}% from last week
               </span>
             </div>
@@ -65,12 +152,12 @@ const CallsOverview: React.FC = () => {
           <CardHeader className="pb-2">
             <CardDescription>Completed Calls</CardDescription>
             <CardTitle className="text-3xl font-bold">
-              {formatNumber(callStats.completedCalls)}
+              {isLoading ? "Loading..." : formatNumber(callStats.completedCalls)}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-sm text-muted-foreground">
-              {Math.round((callStats.completedCalls / callStats.totalCalls) * 100)}% completion rate
+              {isLoading ? "Calculating..." : `${Math.round((callStats.completedCalls / (callStats.totalCalls || 1)) * 100)}% completion rate`}
             </div>
           </CardContent>
         </Card>
@@ -80,7 +167,7 @@ const CallsOverview: React.FC = () => {
           <CardHeader className="pb-2">
             <CardDescription>Average Duration</CardDescription>
             <CardTitle className="text-3xl font-bold">
-              {formatDuration(callStats.avgDuration)}
+              {isLoading ? "Loading..." : formatDuration(callStats.avgDuration)}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -102,35 +189,41 @@ const CallsOverview: React.FC = () => {
             <div className="flex items-center text-muted-foreground">
               <Phone size={18} className="mr-1" />
               <span className="text-sm font-medium">
-                {sampleCallsData.reduce((sum, day) => sum + day.calls, 0)} total
+                {isLoading ? "Loading..." : callsData.reduce((sum, day) => sum + day.calls, 0)} total
               </span>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
-                data={sampleCallsData}
-                margin={{
-                  top: 10,
-                  right: 30,
-                  left: 0,
-                  bottom: 0,
-                }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="day" stroke="#888" fontSize={12} />
-                <YAxis stroke="#888" fontSize={12} />
-                <Tooltip />
-                <Area 
-                  type="monotone" 
-                  dataKey="calls" 
-                  stroke="hsl(var(--dashboard-purple))" 
-                  fill="hsl(var(--dashboard-purple)/0.2)" 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {isLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <p>Loading chart data...</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={callsData}
+                  margin={{
+                    top: 10,
+                    right: 30,
+                    left: 0,
+                    bottom: 0,
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="day" stroke="#888" fontSize={12} />
+                  <YAxis stroke="#888" fontSize={12} />
+                  <Tooltip />
+                  <Area 
+                    type="monotone" 
+                    dataKey="calls" 
+                    stroke="hsl(var(--dashboard-purple))" 
+                    fill="hsl(var(--dashboard-purple)/0.2)" 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </CardContent>
       </Card>
