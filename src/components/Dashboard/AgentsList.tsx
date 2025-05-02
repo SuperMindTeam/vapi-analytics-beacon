@@ -39,6 +39,10 @@ const AgentsList: React.FC = () => {
     mutationFn: deleteAgent,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agents"] });
+      toast.success("Agent deleted successfully!");
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete agent: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   });
 
@@ -77,6 +81,7 @@ const AgentsList: React.FC = () => {
           <Alert variant="destructive">
             <AlertDescription>
               Failed to load agents. Please try again later.
+              {error instanceof Error ? ` Error: ${error.message}` : ''}
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -142,7 +147,11 @@ const AgentsList: React.FC = () => {
                           onClick={() => handleDeleteAgent(agent.id)}
                           disabled={deleteAgentMutation.isPending}
                         >
-                          <Trash size={16} />
+                          {deleteAgentMutation.isPending && agent.id === deleteAgentMutation.variables ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Trash size={16} />
+                          )}
                         </Button>
                       </div>
                     </TableCell>
@@ -153,6 +162,9 @@ const AgentsList: React.FC = () => {
           ) : (
             <div className="py-8 text-center">
               <p className="text-muted-foreground">No agents found. Create your first agent to get started.</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                If you believe this is an error, please check your API key or connection.
+              </p>
             </div>
           )}
         </CardContent>

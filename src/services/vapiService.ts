@@ -82,11 +82,11 @@ const fetchFromVapi = async <T>(
   }
 };
 
-// Agent related API calls - using /agent endpoint
+// Agent related API calls - fixing the endpoint to /assistants instead of /agent
 export const getAgents = async (): Promise<Agent[]> => {
   try {
-    // Explicitly type the response to handle both formats
-    const response = await fetchFromVapi<Agent[] | VapiResponse<Agent[]>>("/agent");
+    // Using the correct endpoint: /assistants
+    const response = await fetchFromVapi<Agent[] | VapiResponse<Agent[]>>("/assistants");
     
     // Properly check and extract data based on response structure
     if (Array.isArray(response)) {
@@ -105,7 +105,8 @@ export const getAgents = async (): Promise<Agent[]> => {
 
 export const createAgent = async (agentData: AgentCreateParams): Promise<Agent | null> => {
   try {
-    const response = await fetchFromVapi<Agent | VapiResponse<Agent>>("/agent", {
+    // Also update this endpoint to use /assistants
+    const response = await fetchFromVapi<Agent | VapiResponse<Agent>>("/assistants", {
       method: "POST",
       body: JSON.stringify(agentData),
     });
@@ -132,7 +133,8 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
 
 export const deleteAgent = async (agentId: string): Promise<boolean> => {
   try {
-    await fetchFromVapi(`/agent/${agentId}`, {
+    // Update this endpoint too
+    await fetchFromVapi(`/assistants/${agentId}`, {
       method: "DELETE",
     });
     toast.success("Agent deleted successfully!");
