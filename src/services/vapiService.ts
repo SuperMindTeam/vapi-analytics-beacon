@@ -24,12 +24,13 @@ interface Call {
   endedReason?: string;
 }
 
+// Updated Agent interface to match both our database structure and API responses
 interface Agent {
   id: string;
   name: string;
-  voice_id: string;
-  prompt: string;
-  status: string;
+  voice_id: string | null;
+  prompt: string | null;
+  status: string | null;
   created_at: string;
   active_calls: number;
   org_id?: string;
@@ -136,7 +137,7 @@ export const getAgents = async (): Promise<Agent[]> => {
     }
     
     // Transform to match expected format
-    const formattedAgents = agents.map(agent => ({
+    const formattedAgents: Agent[] = agents.map(agent => ({
       id: agent.id,
       name: agent.name,
       voice_id: agent.voice_id || 'default',
@@ -227,7 +228,7 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
     }
     
     // Format response to match expected format
-    const formattedAgent = {
+    const formattedAgent: Agent = {
       id: agent.id,
       name: agent.name,
       voice_id: agent.voice_id || 'default',

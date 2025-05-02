@@ -16,7 +16,10 @@ export type Database = {
           name: string
           org_id: string
           phone_number: string | null
+          prompt: string | null
+          status: string | null
           updated_at: string
+          voice_id: string | null
         }
         Insert: {
           created_at?: string
@@ -24,7 +27,10 @@ export type Database = {
           name: string
           org_id: string
           phone_number?: string | null
+          prompt?: string | null
+          status?: string | null
           updated_at?: string
+          voice_id?: string | null
         }
         Update: {
           created_at?: string
@@ -32,7 +38,10 @@ export type Database = {
           name?: string
           org_id?: string
           phone_number?: string | null
+          prompt?: string | null
+          status?: string | null
           updated_at?: string
+          voice_id?: string | null
         }
         Relationships: [
           {
