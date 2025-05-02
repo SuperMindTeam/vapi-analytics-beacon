@@ -16,17 +16,23 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash, Edit, Loader2 } from "lucide-react";
+import { Plus, Trash, Edit, Loader2, Building } from "lucide-react";
 import { formatDate, capitalize } from "@/utils/formatters";
 import CreateAgentModal from "./CreateAgentModal";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAgents, deleteAgent } from "@/services/vapiService";
+import { getAgents, deleteAgent, getUserOrganizations } from "@/services/vapiService";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const AgentsList: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const queryClient = useQueryClient();
+  
+  // Fetch user organizations
+  const { data: organizations } = useQuery({
+    queryKey: ["organizations"],
+    queryFn: getUserOrganizations,
+  });
   
   // Fetch agents data with retry and longer staleTime
   const { data: agents, isLoading, error } = useQuery({
@@ -53,6 +59,13 @@ const AgentsList: React.FC = () => {
     if (confirm("Are you sure you want to delete this agent?")) {
       deleteAgentMutation.mutate(agentId);
     }
+  };
+  
+  // Get organization name by id
+  const getOrgName = (orgId: string) => {
+    if (!organizations) return "Unknown";
+    const org = organizations.find(org => org.id === orgId);
+    return org ? org.name : "Unknown";
   };
   
   // Render loading state
@@ -91,9 +104,6 @@ const AgentsList: React.FC = () => {
     );
   }
   
-  // Debug logging to help troubleshoot
-  console.log("Agents data received:", agents);
-  
   return (
     <>
       <Card>
@@ -116,7 +126,7 @@ const AgentsList: React.FC = () => {
                   <TableHead>Name</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Voice</TableHead>
-                  <TableHead>Active Calls</TableHead>
+                  <TableHead>Organization</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -138,7 +148,12 @@ const AgentsList: React.FC = () => {
                       </Badge>
                     </TableCell>
                     <TableCell>{capitalize(agent.voice_id)}</TableCell>
-                    <TableCell>{agent.active_calls}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Building size={16} className="text-muted-foreground" />
+                        <span>{getOrgName(agent.org_id || '')}</span>
+                      </div>
+                    </TableCell>
                     <TableCell>{formatDate(agent.created_at)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-2">
@@ -189,6 +204,7 @@ const AgentsList: React.FC = () => {
           // Refresh agents list after creating a new agent
           queryClient.invalidateQueries({ queryKey: ["agents"] });
         }}
+        organizations={organizations || []}
       />
     </>
   );

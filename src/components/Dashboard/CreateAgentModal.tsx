@@ -22,7 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { createAgent } from "@/services/vapiService";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, Building } from "lucide-react";
 
 // Updated VAPI approved voice options for ElevenLabs
 const voiceOptions = [
@@ -43,19 +43,38 @@ const voiceOptions = [
   { id: "mark", name: "Mark", description: "Natural, conversational male voice" }
 ];
 
+interface Organization {
+  id: string;
+  name: string;
+  role: string;
+  isDefault: boolean;
+}
+
 interface CreateAgentModalProps {
   isOpen: boolean;
   onClose: () => void;
+  organizations: Organization[];
 }
 
 const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ 
   isOpen, 
-  onClose 
+  onClose,
+  organizations = []
 }) => {
   const [name, setName] = useState("");
   const [voiceId, setVoiceId] = useState("");
   const [prompt, setPrompt] = useState("");
   const [firstMessage, setFirstMessage] = useState("Hello! How can I assist you today?");
+  const [orgId, setOrgId] = useState("");
+  
+  // Find default organization if available
+  React.useEffect(() => {
+    if (organizations.length > 0) {
+      const defaultOrg = organizations.find(org => org.isDefault);
+      setOrgId(defaultOrg ? defaultOrg.id : organizations[0].id);
+    }
+  }, [organizations]);
+  
   const queryClient = useQueryClient();
 
   // Create agent mutation using Tanstack Query
@@ -72,6 +91,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
         voiceId: string;
       };
       firstMessage: string;
+      org_id: string;
     }) => createAgent(agentData),
     onSuccess: () => {
       // Reset form
@@ -94,8 +114,8 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!name || !voiceId || !prompt) {
-      toast.error("Please fill in all fields");
+    if (!name || !voiceId || !prompt || !orgId) {
+      toast.error("Please fill in all required fields");
       return;
     }
     
@@ -116,7 +136,8 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
         provider: "11labs",
         voiceId: voiceId
       },
-      firstMessage
+      firstMessage,
+      org_id: orgId
     });
   };
 
@@ -140,6 +161,41 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
                 disabled={createAgentMutation.isPending}
               />
             </div>
+            
+            {organizations.length > 0 && (
+              <div className="grid gap-2">
+                <Label htmlFor="organization">Organization</Label>
+                <Select 
+                  value={orgId} 
+                  onValueChange={setOrgId}
+                  required
+                  disabled={createAgentMutation.isPending}
+                >
+                  <SelectTrigger className="flex items-center gap-2">
+                    <Building className="h-4 w-4 text-muted-foreground" />
+                    <SelectValue placeholder="Select an organization" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {organizations.map((org) => (
+                        <SelectItem key={org.id} value={org.id}>
+                          <div className="flex items-center gap-2">
+                            <Building className="h-4 w-4 text-muted-foreground" />
+                            <span>{org.name}</span>
+                            {org.isDefault && (
+                              <Badge variant="outline" className="ml-2">Default</Badge>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Organization the agent will belong to
+                </p>
+              </div>
+            )}
             
             <div className="grid gap-2">
               <Label htmlFor="voice">Voice</Label>
