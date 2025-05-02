@@ -34,6 +34,7 @@ interface Agent {
   created_at: string;
   active_calls: number;
   org_id?: string;
+  vapi_details?: any; // Add this field to store additional VAPI details
 }
 
 // Updated interface to match the API request structure
@@ -94,7 +95,19 @@ const fetchFromVapi = async <T>(
   }
 };
 
-// Agent related API calls - now using Supabase for database storage
+// Get a single agent from VAPI API
+const getVapiAgentDetails = async (agentId: string): Promise<any> => {
+  try {
+    const response = await fetchFromVapi<any>(`/assistant/${agentId}`);
+    console.log(`Got VAPI details for agent ${agentId}:`, response);
+    return response;
+  } catch (error) {
+    console.error(`Failed to fetch VAPI details for agent ${agentId}:`, error);
+    return null;
+  }
+};
+
+// Agent related API calls - now using Supabase for database storage and enriching with VAPI API data
 export const getAgents = async (): Promise<Agent[]> => {
   try {
     console.log("Fetching agents from Supabase database");
@@ -136,17 +149,33 @@ export const getAgents = async (): Promise<Agent[]> => {
       return [];
     }
     
-    // Transform to match expected format
-    const formattedAgents: Agent[] = agents.map(agent => ({
-      id: agent.id,
-      name: agent.name,
-      voice_id: agent.voice_id || 'default',
-      prompt: agent.prompt || '',
-      status: agent.status || 'active',
-      created_at: agent.created_at,
-      active_calls: 0,
-      org_id: agent.org_id
-    }));
+    // Transform to match expected format and enrich with VAPI data
+    const agentPromises = agents.map(async agent => {
+      // Get additional details from VAPI API
+      const vapiDetails = await getVapiAgentDetails(agent.id);
+      
+      return {
+        id: agent.id,
+        name: agent.name,
+        voice_id: agent.voice_id || 'default',
+        prompt: agent.prompt || '',
+        status: agent.status || 'active',
+        created_at: agent.created_at,
+        active_calls: 0, // We'll update this if available in VAPI details
+        org_id: agent.org_id,
+        vapi_details: vapiDetails // Store the VAPI details
+      };
+    });
+    
+    // Wait for all agent details to be fetched
+    const formattedAgents = await Promise.all(agentPromises);
+    
+    // Update active calls count if available
+    formattedAgents.forEach(agent => {
+      if (agent.vapi_details && agent.vapi_details.active_calls) {
+        agent.active_calls = agent.vapi_details.active_calls;
+      }
+    });
     
     return formattedAgents;
   } catch (error) {

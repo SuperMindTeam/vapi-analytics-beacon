@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { 
   Card,
@@ -127,6 +126,7 @@ const AgentsList: React.FC = () => {
                   <TableHead>Status</TableHead>
                   <TableHead>Voice</TableHead>
                   <TableHead>Organization</TableHead>
+                  <TableHead>Active Calls</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -144,15 +144,24 @@ const AgentsList: React.FC = () => {
                             : ""
                         }
                       >
-                        {capitalize(agent.status)}
+                        {capitalize(agent.status || 'unknown')}
                       </Badge>
                     </TableCell>
-                    <TableCell>{capitalize(agent.voice_id)}</TableCell>
+                    <TableCell>{capitalize(agent.voice_id || 'default')}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Building size={16} className="text-muted-foreground" />
                         <span>{getOrgName(agent.org_id || '')}</span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {agent.active_calls > 0 ? (
+                        <Badge variant="outline" className="bg-blue-50">
+                          {agent.active_calls}
+                        </Badge>
+                      ) : (
+                        "0"
+                      )}
                     </TableCell>
                     <TableCell>{formatDate(agent.created_at)}</TableCell>
                     <TableCell className="text-right">
