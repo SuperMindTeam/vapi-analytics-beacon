@@ -28,10 +28,12 @@ const AgentsList: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const queryClient = useQueryClient();
   
-  // Fetch agents data
+  // Fetch agents data with retry and longer staleTime
   const { data: agents, isLoading, error } = useQuery({
     queryKey: ["agents"],
     queryFn: getAgents,
+    retry: 2,
+    staleTime: 30000, // 30 seconds
   });
   
   // Delete agent mutation
@@ -70,7 +72,7 @@ const AgentsList: React.FC = () => {
     );
   }
   
-  // Render error state
+  // Render error state with detailed error message
   if (error) {
     return (
       <Card>
@@ -88,6 +90,9 @@ const AgentsList: React.FC = () => {
       </Card>
     );
   }
+  
+  // Debug logging to help troubleshoot
+  console.log("Agents data received:", agents);
   
   return (
     <>
@@ -165,6 +170,13 @@ const AgentsList: React.FC = () => {
               <p className="text-sm text-muted-foreground mt-2">
                 If you believe this is an error, please check your API key or connection.
               </p>
+              <Button 
+                onClick={() => queryClient.refetchQueries({ queryKey: ["agents"] })}
+                variant="outline"
+                className="mt-4"
+              >
+                Retry Loading Agents
+              </Button>
             </div>
           )}
         </CardContent>

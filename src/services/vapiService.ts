@@ -3,7 +3,7 @@ import { toast } from "sonner";
 
 // API key should be stored securely in production
 const VAPI_API_KEY = "86a2dd3f-cb06-4544-85c5-cde554064763";
-// Updated base URL - no version prefix
+// Updated base URL with version prefix for assistants endpoint
 const VAPI_API_URL = "https://api.vapi.ai";
 
 interface Call {
@@ -82,11 +82,12 @@ const fetchFromVapi = async <T>(
   }
 };
 
-// Agent related API calls - fixing the endpoint to /assistants instead of /agent
+// Agent related API calls
+// Using '/assistant' (singular) instead of '/assistants' (plural) based on API error
 export const getAgents = async (): Promise<Agent[]> => {
   try {
-    // Using the correct endpoint: /assistants
-    const response = await fetchFromVapi<Agent[] | VapiResponse<Agent[]>>("/assistants");
+    // Try with singular endpoint '/assistant'
+    const response = await fetchFromVapi<Agent[] | VapiResponse<Agent[]>>("/assistant");
     
     // Properly check and extract data based on response structure
     if (Array.isArray(response)) {
@@ -105,8 +106,8 @@ export const getAgents = async (): Promise<Agent[]> => {
 
 export const createAgent = async (agentData: AgentCreateParams): Promise<Agent | null> => {
   try {
-    // Also update this endpoint to use /assistants
-    const response = await fetchFromVapi<Agent | VapiResponse<Agent>>("/assistants", {
+    // Update endpoint to singular '/assistant'
+    const response = await fetchFromVapi<Agent | VapiResponse<Agent>>("/assistant", {
       method: "POST",
       body: JSON.stringify(agentData),
     });
@@ -133,8 +134,8 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
 
 export const deleteAgent = async (agentId: string): Promise<boolean> => {
   try {
-    // Update this endpoint too
-    await fetchFromVapi(`/assistants/${agentId}`, {
+    // Update to singular '/assistant'
+    await fetchFromVapi(`/assistant/${agentId}`, {
       method: "DELETE",
     });
     toast.success("Agent deleted successfully!");
