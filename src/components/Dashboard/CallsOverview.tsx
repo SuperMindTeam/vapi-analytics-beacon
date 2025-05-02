@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { 
   Card, 
@@ -52,8 +53,19 @@ const CallsOverview: React.FC = () => {
       
       try {
         console.log("Fetching calls data...");
-        // Fetch calls data
-        const calls = await getCalls(100); // Get a larger sample to analyze
+        // Get call statistics first since it has more accurate numbers
+        console.log("Fetching call statistics...");
+        const stats = await getCallStatistics();
+        console.log("Call statistics received:", stats);
+        
+        if (!stats) {
+          setError("Failed to retrieve call statistics");
+          setIsLoading(false);
+          return;
+        }
+        
+        // Fetch calls data for chart
+        const calls = await getCalls(100);
         console.log("Calls data received:", calls);
         
         if (!Array.isArray(calls)) {
@@ -63,19 +75,14 @@ const CallsOverview: React.FC = () => {
           return;
         }
         
-        // Get call statistics
-        console.log("Fetching call statistics...");
-        const stats = await getCallStatistics();
-        console.log("Call statistics received:", stats);
-        
-        // Process calls data for stats and chart
+        // Process calls data for chart
         processCallsData(calls);
         
-        // Set statistics
+        // Set statistics from API response
         setCallStats({
-          totalCalls: stats.total || calls.length,
-          completedCalls: stats.completed || calls.filter(call => call.status === "completed").length,
-          avgDuration: stats.average_duration || calculateAverageDuration(calls),
+          totalCalls: stats.total,
+          completedCalls: stats.completed,
+          avgDuration: stats.average_duration,
           callsChange: calculateCallsChange(calls),
         });
       } catch (error) {
@@ -122,23 +129,17 @@ const CallsOverview: React.FC = () => {
     setCallsData(lastSevenDays);
   };
 
-  const calculateAverageDuration = (calls: any[]): number => {
-    const completedCalls = calls.filter(call => call.status === "completed" && call.duration);
-    if (completedCalls.length === 0) return 0;
-    
-    const totalDuration = completedCalls.reduce((sum, call) => sum + (call.duration || 0), 0);
-    return totalDuration / completedCalls.length;
-  };
-
   const calculateCallsChange = (calls: any[]): number => {
     // Calculate percentage change compared to previous period
     const today = new Date();
     const last7Days = calls.filter(call => {
+      if (!call.createdAt) return false;
       const callDate = new Date(call.createdAt);
       return (today.getTime() - callDate.getTime()) / (1000 * 3600 * 24) <= 7;
     }).length;
     
     const previous7Days = calls.filter(call => {
+      if (!call.createdAt) return false;
       const callDate = new Date(call.createdAt);
       const dayDiff = (today.getTime() - callDate.getTime()) / (1000 * 3600 * 24);
       return dayDiff > 7 && dayDiff <= 14;

@@ -184,12 +184,25 @@ export const getCallsByAgent = async (agentId: string): Promise<Call[]> => {
   }
 };
 
-// Updated getCallStatistics function to return default stats directly without requiring an ID
+// Updated getCallStatistics function to return more accurate statistics
 export const getCallStatistics = async () => {
   // We can't use the /call/analytics endpoint as it requires an ID parameter
   // Instead, we'll calculate statistics from the calls we fetch
   try {
     const calls = await getCalls(100); // Get a larger sample to analyze
+    
+    if (!Array.isArray(calls)) {
+      console.error("Invalid calls data format:", calls);
+      return {
+        total: 0,
+        completed: 0,
+        in_progress: 0,
+        failed: 0,
+        average_duration: 0
+      };
+    }
+    
+    console.log(`Processing ${calls.length} calls for statistics`);
     
     // Calculate statistics from calls data
     const total = calls.length;
@@ -201,19 +214,23 @@ export const getCallStatistics = async () => {
     
     // Calculate average duration for completed calls with duration
     const completedCallsWithDuration = calls.filter(
-      call => call.status === "completed" && call.duration
+      call => call.status === "completed" && typeof call.duration === 'number' && call.duration > 0
     );
+    
     const averageDuration = completedCallsWithDuration.length > 0
       ? completedCallsWithDuration.reduce((sum, call) => sum + (call.duration || 0), 0) / completedCallsWithDuration.length
       : 0;
     
-    return {
+    const stats = {
       total,
       completed,
       in_progress: inProgress,
       failed,
       average_duration: averageDuration,
     };
+    
+    console.log("Generated call statistics:", stats);
+    return stats;
   } catch (error) {
     console.error("Failed to calculate call statistics:", error);
     return {
