@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 
 // API key should be stored securely in production
@@ -106,10 +107,18 @@ export const getAgents = async (): Promise<Agent[]> => {
 export const createAgent = async (agentData: AgentCreateParams): Promise<Agent | null> => {
   try {
     console.log("Creating agent with data:", agentData);
+    
+    // IMPORTANT: The API expects these exact field names, don't modify them
+    const apiRequestBody = {
+      name: agentData.name,
+      voice_id: agentData.voice_id,
+      prompt: agentData.prompt
+    };
+    
     // Update endpoint to singular '/assistant'
     const response = await fetchFromVapi<Agent | VapiResponse<Agent>>("/assistant", {
       method: "POST",
-      body: JSON.stringify(agentData),
+      body: JSON.stringify(apiRequestBody),
     });
     
     console.log("Create agent response:", response);

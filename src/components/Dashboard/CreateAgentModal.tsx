@@ -24,13 +24,23 @@ import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 
-// Sample voice options - would be fetched from the API
+// Updated VAPI approved voice options for ElevenLabs
 const voiceOptions = [
-  { id: "alloy", name: "Alloy", description: "Versatile, general purpose" },
-  { id: "echo", name: "Echo", description: "High energy, enthusiastic" },
-  { id: "fable", name: "Fable", description: "British accent, storyteller" },
-  { id: "nova", name: "Nova", description: "Professional, friendly" },
-  { id: "shimmer", name: "Shimmer", description: "Clear, expressive" }
+  { id: "burt", name: "Burt", description: "Deep, authoritative male voice" },
+  { id: "marissa", name: "Marissa", description: "Professional female voice" },
+  { id: "andrea", name: "Andrea", description: "Warm, friendly female voice" },
+  { id: "sarah", name: "Sarah", description: "Clear, articulate female voice" },
+  { id: "phillip", name: "Phillip", description: "Confident, mature male voice" },
+  { id: "steve", name: "Steve", description: "Casual, approachable male voice" },
+  { id: "joseph", name: "Joseph", description: "Warm, trusting male voice" },
+  { id: "myra", name: "Myra", description: "Gentle, soothing female voice" },
+  { id: "paula", name: "Paula", description: "Friendly, conversational female voice" },
+  { id: "ryan", name: "Ryan", description: "Energetic male voice" },
+  { id: "drew", name: "Drew", description: "Calm, measured male voice" },
+  { id: "paul", name: "Paul", description: "Clear, professional male voice" },
+  { id: "mrb", name: "MrB", description: "Distinctive character voice" },
+  { id: "matilda", name: "Matilda", description: "Lively, expressive female voice" },
+  { id: "mark", name: "Mark", description: "Natural, conversational male voice" }
 ];
 
 interface CreateAgentModalProps {
@@ -76,7 +86,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
       return;
     }
     
-    // Create agent with VAPI
+    // Create agent with VAPI - using the API's expected field names
     createAgentMutation.mutate({
       name,
       voice_id: voiceId,
