@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 
 // API key should be stored securely in production
@@ -130,13 +129,38 @@ export const getCallsByAgent = async (agentId: string): Promise<Call[]> => {
   }
 };
 
+// Updated getCallStatistics function to return default stats directly without requiring an ID
 export const getCallStatistics = async () => {
+  // We can't use the /call/analytics endpoint as it requires an ID parameter
+  // Instead, we'll calculate statistics from the calls we fetch
   try {
-    // Updated analytics endpoint
-    const response = await fetchFromVapi<any>("/call/analytics");
-    return response.data;
+    const calls = await getCalls(100); // Get a larger sample to analyze
+    
+    // Calculate statistics from calls data
+    const total = calls.length;
+    const completed = calls.filter(call => call.status === "completed").length;
+    const inProgress = calls.filter(call => call.status === "in-progress").length;
+    const failed = calls.filter(call => 
+      call.status !== "completed" && call.status !== "in-progress"
+    ).length;
+    
+    // Calculate average duration for completed calls with duration
+    const completedCallsWithDuration = calls.filter(
+      call => call.status === "completed" && call.duration
+    );
+    const averageDuration = completedCallsWithDuration.length > 0
+      ? completedCallsWithDuration.reduce((sum, call) => sum + (call.duration || 0), 0) / completedCallsWithDuration.length
+      : 0;
+    
+    return {
+      total,
+      completed,
+      in_progress: inProgress,
+      failed,
+      average_duration: averageDuration,
+    };
   } catch (error) {
-    console.error("Failed to fetch call statistics:", error);
+    console.error("Failed to calculate call statistics:", error);
     return {
       total: 0,
       completed: 0,

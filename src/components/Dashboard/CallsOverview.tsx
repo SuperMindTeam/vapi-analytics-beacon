@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { 
   Card, 
@@ -56,6 +57,13 @@ const CallsOverview: React.FC = () => {
         const calls = await getCalls(100); // Get a larger sample to analyze
         console.log("Calls data received:", calls);
         
+        if (!Array.isArray(calls)) {
+          console.error("Calls data is not an array:", calls);
+          setError("Invalid calls data format received from API");
+          setIsLoading(false);
+          return;
+        }
+        
         // Get call statistics
         console.log("Fetching call statistics...");
         const stats = await getCallStatistics();
@@ -83,6 +91,11 @@ const CallsOverview: React.FC = () => {
   }, []);
 
   const processCallsData = (calls: any[]) => {
+    if (!Array.isArray(calls)) {
+      console.error("Cannot process calls data: not an array");
+      return;
+    }
+    
     // Create a map to group calls by day
     const lastSevenDays = Array.from({ length: 7 }, (_, i) => {
       const date = subDays(new Date(), 6 - i);
@@ -95,13 +108,15 @@ const CallsOverview: React.FC = () => {
 
     // Count calls per day
     calls.forEach(call => {
-      const callDate = new Date(call.created_at);
-      const dayIndex = lastSevenDays.findIndex(day => 
-        format(day.date, 'yyyy-MM-dd') === format(callDate, 'yyyy-MM-dd')
-      );
-      
-      if (dayIndex >= 0) {
-        lastSevenDays[dayIndex].calls += 1;
+      if (call && call.created_at) {
+        const callDate = new Date(call.created_at);
+        const dayIndex = lastSevenDays.findIndex(day => 
+          format(day.date, 'yyyy-MM-dd') === format(callDate, 'yyyy-MM-dd')
+        );
+        
+        if (dayIndex >= 0) {
+          lastSevenDays[dayIndex].calls += 1;
+        }
       }
     });
 
