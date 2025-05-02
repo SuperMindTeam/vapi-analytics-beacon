@@ -34,10 +34,12 @@ interface Agent {
   active_calls: number;
 }
 
+// Updated interface to match what's being used in the modal
 interface AgentCreateParams {
   name: string;
-  voice_id: string;
-  prompt: string;
+  voiceId: string;
+  provider: string;
+  messages: Array<{role: string; content: string}>;
 }
 
 // Updated interface to make data optional but properly typed
@@ -108,11 +110,12 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
   try {
     console.log("Creating agent with data:", agentData);
     
-    // IMPORTANT: The API expects these exact field names, don't modify them
+    // Match the properties expected by the API
     const apiRequestBody = {
       name: agentData.name,
-      voice_id: agentData.voice_id,
-      prompt: agentData.prompt
+      voiceId: agentData.voiceId,
+      provider: agentData.provider,
+      messages: agentData.messages
     };
     
     // Update endpoint to singular '/assistant'
