@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 
 // API key should be stored securely in production
@@ -110,13 +109,15 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
   try {
     console.log("Creating agent with data:", agentData);
     
-    // Match the properties expected by the API
+    // Match the properties expected by the API - ensuring voiceId is lowercase
     const apiRequestBody = {
       name: agentData.name,
-      voiceId: agentData.voiceId,
+      voiceid: agentData.voiceId.toLowerCase(), // Convert to lowercase and use voiceid (not voiceId)
       provider: agentData.provider,
       messages: agentData.messages
     };
+    
+    console.log("Formatted API request body:", apiRequestBody);
     
     // Update endpoint to singular '/assistant'
     const response = await fetchFromVapi<Agent | VapiResponse<Agent>>("/assistant", {
