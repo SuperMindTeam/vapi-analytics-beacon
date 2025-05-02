@@ -1,9 +1,8 @@
-
 import { toast } from "sonner";
 
 // API key should be stored securely in production
 const VAPI_API_KEY = "86a2dd3f-cb06-4544-85c5-cde554064763";
-const VAPI_API_URL = "https://api.vapi.ai";
+const VAPI_API_URL = "https://api.vapi.ai/api/v1";
 
 interface Call {
   id: string;
@@ -69,7 +68,6 @@ const fetchFromVapi = async <T>(
 // Agent related API calls
 export const getAgents = async (): Promise<Agent[]> => {
   try {
-    // For VAPI, the correct endpoint is /agents without v1 prefix
     const response = await fetchFromVapi<VapiResponse<Agent[]>>("/agents");
     return response.data;
   } catch (error) {
@@ -108,7 +106,6 @@ export const deleteAgent = async (agentId: string): Promise<boolean> => {
 // Call related API calls
 export const getCalls = async (limit = 10): Promise<Call[]> => {
   try {
-    // For VAPI, the correct endpoint is /calls without v1 prefix
     const response = await fetchFromVapi<VapiResponse<Call[]>>(`/calls?limit=${limit}`);
     return response.data;
   } catch (error) {
@@ -129,8 +126,8 @@ export const getCallsByAgent = async (agentId: string): Promise<Call[]> => {
 
 export const getCallStatistics = async () => {
   try {
-    // For VAPI, using the analytics endpoint
-    const response = await fetchFromVapi<any>("/analytics/calls");
+    // Updated to the correct analytics endpoint
+    const response = await fetchFromVapi<any>("/calls/analytics");
     return response.data;
   } catch (error) {
     console.error("Failed to fetch call statistics:", error);
