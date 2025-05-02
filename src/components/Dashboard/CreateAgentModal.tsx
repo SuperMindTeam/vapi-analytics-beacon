@@ -21,6 +21,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { createAgent } from "@/services/vapiService";
 import { toast } from "sonner";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 
 // Sample voice options - would be fetched from the API
 const voiceOptions = [
@@ -43,7 +45,28 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
   const [name, setName] = useState("");
   const [voiceId, setVoiceId] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Create agent mutation using Tanstack Query
+  const createAgentMutation = useMutation({
+    mutationFn: (agentData: { name: string; voice_id: string; prompt: string }) => 
+      createAgent(agentData),
+    onSuccess: () => {
+      // Reset form
+      setName("");
+      setVoiceId("");
+      setPrompt("");
+      
+      // Refresh agents list and close modal
+      queryClient.invalidateQueries({ queryKey: ["agents"] });
+      toast.success("Agent created successfully!");
+      onClose();
+    },
+    onError: (error) => {
+      console.error("Error creating agent:", error);
+      toast.error(`Failed to create agent: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,25 +76,12 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
       return;
     }
     
-    setIsSubmitting(true);
-    
-    try {
-      await createAgent({
-        name,
-        voice_id: voiceId,
-        prompt
-      });
-      
-      // Reset form and close modal
-      setName("");
-      setVoiceId("");
-      setPrompt("");
-      onClose();
-    } catch (error) {
-      console.error("Error creating agent:", error);
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Create agent with VAPI
+    createAgentMutation.mutate({
+      name,
+      voice_id: voiceId,
+      prompt
+    });
   };
 
   return (
@@ -91,12 +101,18 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
+                disabled={createAgentMutation.isPending}
               />
             </div>
             
             <div className="grid gap-2">
               <Label htmlFor="voice">Voice</Label>
-              <Select value={voiceId} onValueChange={setVoiceId} required>
+              <Select 
+                value={voiceId} 
+                onValueChange={setVoiceId} 
+                required
+                disabled={createAgentMutation.isPending}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a voice" />
                 </SelectTrigger>
@@ -126,6 +142,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={6}
                 required
+                disabled={createAgentMutation.isPending}
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Write a detailed prompt that defines your agent's persona, 
@@ -139,16 +156,23 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
               type="button" 
               variant="outline" 
               onClick={onClose}
-              disabled={isSubmitting}
+              disabled={createAgentMutation.isPending}
             >
               Cancel
             </Button>
             <Button 
               type="submit"
               className="bg-[hsl(var(--dashboard-purple))] hover:bg-[hsl(var(--dashboard-purple))/0.9]"
-              disabled={isSubmitting}
+              disabled={createAgentMutation.isPending}
             >
-              {isSubmitting ? "Creating..." : "Create Agent"}
+              {createAgentMutation.isPending ? (
+                <>
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Agent"
+              )}
             </Button>
           </DialogFooter>
         </form>

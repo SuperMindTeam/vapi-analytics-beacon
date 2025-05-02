@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 
 // API key should be stored securely in production
@@ -106,11 +105,14 @@ export const getAgents = async (): Promise<Agent[]> => {
 
 export const createAgent = async (agentData: AgentCreateParams): Promise<Agent | null> => {
   try {
+    console.log("Creating agent with data:", agentData);
     // Update endpoint to singular '/assistant'
     const response = await fetchFromVapi<Agent | VapiResponse<Agent>>("/assistant", {
       method: "POST",
       body: JSON.stringify(agentData),
     });
+    
+    console.log("Create agent response:", response);
     
     // Properly check and extract agent based on response structure
     let agent: Agent | null = null;
@@ -128,7 +130,7 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
     return null;
   } catch (error) {
     console.error("Failed to create agent:", error);
-    return null;
+    throw error; // Re-throw to let the mutation handle the error
   }
 };
 
