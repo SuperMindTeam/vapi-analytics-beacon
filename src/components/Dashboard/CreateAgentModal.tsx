@@ -55,21 +55,30 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
   const [name, setName] = useState("");
   const [voiceId, setVoiceId] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [firstMessage, setFirstMessage] = useState("Hello! How can I assist you today?");
   const queryClient = useQueryClient();
 
   // Create agent mutation using Tanstack Query
   const createAgentMutation = useMutation({
     mutationFn: (agentData: { 
       name: string; 
-      voiceId: string; 
-      provider: string; 
-      messages: Array<{role: string; content: string}>
+      model: {
+        provider: string;
+        model: string;
+        messages: Array<{role: string; content: string}>;
+      };
+      voice: {
+        provider: string;
+        voiceId: string;
+      };
+      firstMessage: string;
     }) => createAgent(agentData),
     onSuccess: () => {
       // Reset form
       setName("");
       setVoiceId("");
       setPrompt("");
+      setFirstMessage("Hello! How can I assist you today?");
       
       // Refresh agents list and close modal
       queryClient.invalidateQueries({ queryKey: ["agents"] });
@@ -90,17 +99,24 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
       return;
     }
     
-    // Create agent with updated fields for VAPI API
+    // Create agent with updated structure for VAPI API
     createAgentMutation.mutate({
       name,
-      voiceId,
-      provider: "11labs",
-      messages: [
-        {
-          role: "system",
-          content: prompt
-        }
-      ]
+      model: {
+        provider: "openai",
+        model: "gpt-4",
+        messages: [
+          {
+            role: "system",
+            content: prompt
+          }
+        ]
+      },
+      voice: {
+        provider: "11labs",
+        voiceId: voiceId
+      },
+      firstMessage
     });
   };
 
@@ -167,6 +183,21 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
               <p className="text-xs text-muted-foreground mt-1">
                 Write a detailed prompt that defines your agent's persona, 
                 knowledge, and how it should handle calls.
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="firstMessage">First Message</Label>
+              <Input
+                id="firstMessage"
+                placeholder="Hello! How can I assist you today?"
+                value={firstMessage}
+                onChange={(e) => setFirstMessage(e.target.value)}
+                required
+                disabled={createAgentMutation.isPending}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                First message the agent will say when a call connects.
               </p>
             </div>
           </div>

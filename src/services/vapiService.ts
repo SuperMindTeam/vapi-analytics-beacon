@@ -33,12 +33,19 @@ interface Agent {
   active_calls: number;
 }
 
-// Updated interface to match what's being used in the modal
+// Updated interface to match the API request structure
 interface AgentCreateParams {
   name: string;
-  voiceId: string;
-  provider: string;
-  messages: Array<{role: string; content: string}>;
+  model: {
+    provider: string;
+    model: string;
+    messages: Array<{role: string; content: string}>;
+  };
+  voice: {
+    provider: string;
+    voiceId: string;
+  };
+  firstMessage?: string;
 }
 
 // Updated interface to make data optional but properly typed
@@ -109,20 +116,13 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
   try {
     console.log("Creating agent with data:", agentData);
     
-    // Match the properties expected by the API - ensuring voiceId is lowercase
-    const apiRequestBody = {
-      name: agentData.name,
-      voiceid: agentData.voiceId.toLowerCase(), // Convert to lowercase and use voiceid (not voiceId)
-      provider: agentData.provider,
-      messages: agentData.messages
-    };
-    
-    console.log("Formatted API request body:", apiRequestBody);
+    // No need to reformat the request body, just pass it directly
+    console.log("API request body:", agentData);
     
     // Update endpoint to singular '/assistant'
     const response = await fetchFromVapi<Agent | VapiResponse<Agent>>("/assistant", {
       method: "POST",
-      body: JSON.stringify(apiRequestBody),
+      body: JSON.stringify(agentData),
     });
     
     console.log("Create agent response:", response);
