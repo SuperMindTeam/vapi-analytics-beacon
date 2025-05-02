@@ -16,40 +16,73 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash, Edit } from "lucide-react";
+import { Plus, Trash, Edit, Loader2 } from "lucide-react";
 import { formatDate, capitalize } from "@/utils/formatters";
 import CreateAgentModal from "./CreateAgentModal";
-
-// Sample data - would be replaced by actual data from the API
-const sampleAgents = [
-  {
-    id: "agt_1",
-    name: "Customer Support Agent",
-    voice_id: "alloy",
-    status: "active",
-    active_calls: 2,
-    created_at: "2023-11-15T14:48:00Z",
-  },
-  {
-    id: "agt_2",
-    name: "Sales Representative",
-    voice_id: "shimmer",
-    status: "active",
-    active_calls: 0,
-    created_at: "2023-12-03T09:32:00Z",
-  },
-  {
-    id: "agt_3",
-    name: "Appointment Scheduler",
-    voice_id: "nova",
-    status: "inactive",
-    active_calls: 0,
-    created_at: "2024-01-07T16:15:00Z",
-  }
-];
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getAgents, deleteAgent } from "@/services/vapiService";
+import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const AgentsList: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const queryClient = useQueryClient();
+  
+  // Fetch agents data
+  const { data: agents, isLoading, error } = useQuery({
+    queryKey: ["agents"],
+    queryFn: getAgents,
+  });
+  
+  // Delete agent mutation
+  const deleteAgentMutation = useMutation({
+    mutationFn: deleteAgent,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agents"] });
+    }
+  });
+
+  // Handle agent deletion
+  const handleDeleteAgent = (agentId: string) => {
+    if (confirm("Are you sure you want to delete this agent?")) {
+      deleteAgentMutation.mutate(agentId);
+    }
+  };
+  
+  // Render loading state
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Agents</CardTitle>
+        </CardHeader>
+        <CardContent className="flex justify-center py-10">
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading agents...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  // Render error state
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Agents</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertDescription>
+              Failed to load agents. Please try again later.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
   
   return (
     <>
@@ -66,56 +99,72 @@ const AgentsList: React.FC = () => {
           </Button>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Voice</TableHead>
-                <TableHead>Active Calls</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sampleAgents.map((agent) => (
-                <TableRow key={agent.id}>
-                  <TableCell className="font-medium">{agent.name}</TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant={agent.status === "active" ? "default" : "secondary"}
-                      className={
-                        agent.status === "active" 
-                          ? "bg-green-500 hover:bg-green-600" 
-                          : ""
-                      }
-                    >
-                      {capitalize(agent.status)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{capitalize(agent.voice_id)}</TableCell>
-                  <TableCell>{agent.active_calls}</TableCell>
-                  <TableCell>{formatDate(agent.created_at)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Button variant="ghost" size="icon" title="Edit agent">
-                        <Edit size={16} />
-                      </Button>
-                      <Button variant="ghost" size="icon" title="Delete agent">
-                        <Trash size={16} />
-                      </Button>
-                    </div>
-                  </TableCell>
+          {agents && agents.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Voice</TableHead>
+                  <TableHead>Active Calls</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {agents.map((agent) => (
+                  <TableRow key={agent.id}>
+                    <TableCell className="font-medium">{agent.name}</TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={agent.status === "active" ? "default" : "secondary"}
+                        className={
+                          agent.status === "active" 
+                            ? "bg-green-500 hover:bg-green-600" 
+                            : ""
+                        }
+                      >
+                        {capitalize(agent.status)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{capitalize(agent.voice_id)}</TableCell>
+                    <TableCell>{agent.active_calls}</TableCell>
+                    <TableCell>{formatDate(agent.created_at)}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end space-x-2">
+                        <Button variant="ghost" size="icon" title="Edit agent">
+                          <Edit size={16} />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          title="Delete agent"
+                          onClick={() => handleDeleteAgent(agent.id)}
+                          disabled={deleteAgentMutation.isPending}
+                        >
+                          <Trash size={16} />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="py-8 text-center">
+              <p className="text-muted-foreground">No agents found. Create your first agent to get started.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
       
       <CreateAgentModal 
         isOpen={isCreateModalOpen} 
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          // Refresh agents list after creating a new agent
+          queryClient.invalidateQueries({ queryKey: ["agents"] });
+        }}
       />
     </>
   );
