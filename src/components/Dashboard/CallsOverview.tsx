@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { 
   Card, 
@@ -17,9 +16,10 @@ import {
   ResponsiveContainer 
 } from "recharts";
 import { formatNumber, formatDuration } from "@/utils/formatters";
-import { ArrowUp, ArrowDown, Phone } from "lucide-react";
+import { ArrowUp, ArrowDown, Phone, AlertCircle } from "lucide-react";
 import { getCalls, getCallStatistics } from "@/services/vapiService";
 import { format, subDays } from "date-fns";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 interface CallStats {
   totalCalls: number;
@@ -43,16 +43,23 @@ const CallsOverview: React.FC = () => {
   });
   const [callsData, setCallsData] = useState<CallChartData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
+      setError(null);
+      
       try {
+        console.log("Fetching calls data...");
         // Fetch calls data
         const calls = await getCalls(100); // Get a larger sample to analyze
+        console.log("Calls data received:", calls);
         
         // Get call statistics
+        console.log("Fetching call statistics...");
         const stats = await getCallStatistics();
+        console.log("Call statistics received:", stats);
         
         // Process calls data for stats and chart
         processCallsData(calls);
@@ -66,6 +73,7 @@ const CallsOverview: React.FC = () => {
         });
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
+        setError("Unable to fetch call data. Please check API configuration.");
       } finally {
         setIsLoading(false);
       }
@@ -125,6 +133,16 @@ const CallsOverview: React.FC = () => {
     if (previous7Days === 0) return last7Days > 0 ? 100 : 0;
     return Math.round(((last7Days - previous7Days) / previous7Days) * 100);
   };
+  
+  if (error) {
+    return (
+      <Alert variant="destructive" className="mb-6">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
   
   return (
     <div className="space-y-6">
