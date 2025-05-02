@@ -20,10 +20,18 @@ const AuthPage: React.FC = () => {
 
   const handleGoogleSignIn = async () => {
     try {
+      // Get the current URL origin for the redirect
+      const redirectTo = window.location.origin;
+      
+      console.log('Signing in with Google, redirecting to:', redirectTo);
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin
+          redirectTo: redirectTo,
+          queryParams: {
+            prompt: 'select_account' // Forces Google to always display the account selection screen
+          }
         }
       });
       
