@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 
 // API key should be stored securely in production
@@ -7,13 +8,20 @@ const VAPI_API_URL = "https://api.vapi.ai";
 
 interface Call {
   id: string;
-  agent_id: string;
-  phone_number: string;
+  assistantId: string;
+  phoneNumberId: string;
+  type: string;
   status: string;
-  duration: number;
-  created_at: string;
-  ended_at: string | null;
+  duration?: number;
+  createdAt: string;
+  endedAt?: string;
   transcript?: string;
+  recordingUrl?: string;
+  summary?: string;
+  customer?: {
+    number: string;
+  };
+  endedReason?: string;
 }
 
 interface Agent {
@@ -33,7 +41,7 @@ interface AgentCreateParams {
 }
 
 interface VapiResponse<T> {
-  data: T;
+  data?: T;
   total?: number;
 }
 
@@ -62,7 +70,10 @@ const fetchFromVapi = async <T>(
       throw new Error(errorData.message || `API Error: ${response.status}`);
     }
 
-    return await response.json();
+    const jsonResponse = await response.json();
+    
+    // Check if response has a data property, if not return the response directly
+    return (jsonResponse.data !== undefined) ? jsonResponse : jsonResponse as T;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown API error occurred";
     toast.error(errorMessage);
@@ -73,8 +84,8 @@ const fetchFromVapi = async <T>(
 // Agent related API calls - using /agent endpoint
 export const getAgents = async (): Promise<Agent[]> => {
   try {
-    const response = await fetchFromVapi<VapiResponse<Agent[]>>("/agent");
-    return response.data;
+    const response = await fetchFromVapi<Agent[] | VapiResponse<Agent[]>>("/agent");
+    return Array.isArray(response) ? response : (response.data || []);
   } catch (error) {
     console.error("Failed to fetch agents:", error);
     return [];
@@ -83,12 +94,18 @@ export const getAgents = async (): Promise<Agent[]> => {
 
 export const createAgent = async (agentData: AgentCreateParams): Promise<Agent | null> => {
   try {
-    const response = await fetchFromVapi<VapiResponse<Agent>>("/agent", {
+    const response = await fetchFromVapi<Agent | VapiResponse<Agent>>("/agent", {
       method: "POST",
       body: JSON.stringify(agentData),
     });
-    toast.success("Agent created successfully!");
-    return response.data;
+    
+    const agent = 'id' in response ? response : (response.data as Agent);
+    
+    if (agent) {
+      toast.success("Agent created successfully!");
+      return agent;
+    }
+    return null;
   } catch (error) {
     console.error("Failed to create agent:", error);
     return null;
@@ -111,8 +128,9 @@ export const deleteAgent = async (agentId: string): Promise<boolean> => {
 // Call related API calls - using /call endpoint
 export const getCalls = async (limit = 10): Promise<Call[]> => {
   try {
-    const response = await fetchFromVapi<VapiResponse<Call[]>>(`/call?limit=${limit}`);
-    return response.data;
+    const response = await fetchFromVapi<Call[] | VapiResponse<Call[]>>(`/call?limit=${limit}`);
+    // Handle both array response and data property response
+    return Array.isArray(response) ? response : (response.data as Call[] || []);
   } catch (error) {
     console.error("Failed to fetch calls:", error);
     return [];
@@ -121,8 +139,9 @@ export const getCalls = async (limit = 10): Promise<Call[]> => {
 
 export const getCallsByAgent = async (agentId: string): Promise<Call[]> => {
   try {
-    const response = await fetchFromVapi<VapiResponse<Call[]>>(`/call?agent_id=${agentId}`);
-    return response.data;
+    const response = await fetchFromVapi<Call[] | VapiResponse<Call[]>>(`/call?agent_id=${agentId}`);
+    // Handle both array response and data property response
+    return Array.isArray(response) ? response : (response.data as Call[] || []);
   } catch (error) {
     console.error("Failed to fetch agent calls:", error);
     return [];
@@ -174,8 +193,8 @@ export const getCallStatistics = async () => {
 // Voice options - using /voice endpoint
 export const getVoices = async () => {
   try {
-    const response = await fetchFromVapi<VapiResponse<any[]>>("/voice");
-    return response.data;
+    const response = await fetchFromVapi<any[]>("/voice");
+    return Array.isArray(response) ? response : (response.data || []);
   } catch (error) {
     console.error("Failed to fetch voices:", error);
     return [];

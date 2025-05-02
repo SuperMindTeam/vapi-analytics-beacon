@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { 
   Card, 
@@ -108,8 +107,8 @@ const CallsOverview: React.FC = () => {
 
     // Count calls per day
     calls.forEach(call => {
-      if (call && call.created_at) {
-        const callDate = new Date(call.created_at);
+      if (call && call.createdAt) {
+        const callDate = new Date(call.createdAt);
         const dayIndex = lastSevenDays.findIndex(day => 
           format(day.date, 'yyyy-MM-dd') === format(callDate, 'yyyy-MM-dd')
         );
@@ -135,12 +134,12 @@ const CallsOverview: React.FC = () => {
     // Calculate percentage change compared to previous period
     const today = new Date();
     const last7Days = calls.filter(call => {
-      const callDate = new Date(call.created_at);
+      const callDate = new Date(call.createdAt);
       return (today.getTime() - callDate.getTime()) / (1000 * 3600 * 24) <= 7;
     }).length;
     
     const previous7Days = calls.filter(call => {
-      const callDate = new Date(call.created_at);
+      const callDate = new Date(call.createdAt);
       const dayDiff = (today.getTime() - callDate.getTime()) / (1000 * 3600 * 24);
       return dayDiff > 7 && dayDiff <= 14;
     }).length;
