@@ -1,8 +1,10 @@
+
 import { toast } from "sonner";
 
 // API key should be stored securely in production
 const VAPI_API_KEY = "86a2dd3f-cb06-4544-85c5-cde554064763";
-const VAPI_API_URL = "https://api.vapi.ai/api/v1";
+// According to error logs, we need to correct this URL structure
+const VAPI_API_URL = "https://api.vapi.ai";
 
 interface Call {
   id: string;
@@ -42,7 +44,11 @@ const fetchFromVapi = async <T>(
   options: RequestInit = {}
 ): Promise<T> => {
   try {
-    const response = await fetch(`${VAPI_API_URL}${endpoint}`, {
+    // Log the full URL to help with debugging
+    const fullUrl = `${VAPI_API_URL}${endpoint}`;
+    console.log(`Making API request to: ${fullUrl}`);
+    
+    const response = await fetch(fullUrl, {
       ...options,
       headers: {
         Authorization: `Bearer ${VAPI_API_KEY}`,
@@ -68,7 +74,7 @@ const fetchFromVapi = async <T>(
 // Agent related API calls
 export const getAgents = async (): Promise<Agent[]> => {
   try {
-    const response = await fetchFromVapi<VapiResponse<Agent[]>>("/agents");
+    const response = await fetchFromVapi<VapiResponse<Agent[]>>("/api/v1/agents");
     return response.data;
   } catch (error) {
     console.error("Failed to fetch agents:", error);
@@ -78,7 +84,7 @@ export const getAgents = async (): Promise<Agent[]> => {
 
 export const createAgent = async (agentData: AgentCreateParams): Promise<Agent | null> => {
   try {
-    const response = await fetchFromVapi<VapiResponse<Agent>>("/agents", {
+    const response = await fetchFromVapi<VapiResponse<Agent>>("/api/v1/agents", {
       method: "POST",
       body: JSON.stringify(agentData),
     });
@@ -92,7 +98,7 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
 
 export const deleteAgent = async (agentId: string): Promise<boolean> => {
   try {
-    await fetchFromVapi(`/agents/${agentId}`, {
+    await fetchFromVapi(`/api/v1/agents/${agentId}`, {
       method: "DELETE",
     });
     toast.success("Agent deleted successfully!");
@@ -106,7 +112,7 @@ export const deleteAgent = async (agentId: string): Promise<boolean> => {
 // Call related API calls
 export const getCalls = async (limit = 10): Promise<Call[]> => {
   try {
-    const response = await fetchFromVapi<VapiResponse<Call[]>>(`/calls?limit=${limit}`);
+    const response = await fetchFromVapi<VapiResponse<Call[]>>(`/api/v1/calls?limit=${limit}`);
     return response.data;
   } catch (error) {
     console.error("Failed to fetch calls:", error);
@@ -116,7 +122,7 @@ export const getCalls = async (limit = 10): Promise<Call[]> => {
 
 export const getCallsByAgent = async (agentId: string): Promise<Call[]> => {
   try {
-    const response = await fetchFromVapi<VapiResponse<Call[]>>(`/calls?agent_id=${agentId}`);
+    const response = await fetchFromVapi<VapiResponse<Call[]>>(`/api/v1/calls?agent_id=${agentId}`);
     return response.data;
   } catch (error) {
     console.error("Failed to fetch agent calls:", error);
@@ -126,8 +132,8 @@ export const getCallsByAgent = async (agentId: string): Promise<Call[]> => {
 
 export const getCallStatistics = async () => {
   try {
-    // Updated to the correct analytics endpoint
-    const response = await fetchFromVapi<any>("/calls/analytics");
+    // Based on error logs, fixing the analytics endpoint
+    const response = await fetchFromVapi<any>("/api/v1/calls/analytics");
     return response.data;
   } catch (error) {
     console.error("Failed to fetch call statistics:", error);
@@ -144,7 +150,7 @@ export const getCallStatistics = async () => {
 // Voice options
 export const getVoices = async () => {
   try {
-    const response = await fetchFromVapi<VapiResponse<any[]>>("/voices");
+    const response = await fetchFromVapi<VapiResponse<any[]>>("/api/v1/voices");
     return response.data;
   } catch (error) {
     console.error("Failed to fetch voices:", error);
