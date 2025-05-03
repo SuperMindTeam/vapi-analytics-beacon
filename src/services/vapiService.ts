@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -119,11 +120,9 @@ export const getAgents = async (): Promise<Agent[]> => {
       return [];
     }
     
-    // Get organizations the user belongs to
+    // Get organizations the user belongs to using the security definer function
     const { data: orgMembers, error: orgError } = await supabase
-      .from('org_members')
-      .select('org_id')
-      .eq('user_id', user.id);
+      .rpc('get_user_org_memberships', { user_id_param: user.id });
     
     if (orgError) {
       console.error("Failed to fetch user organizations:", orgError);
@@ -208,14 +207,9 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
     if (!orgId) {
       console.log("No org_id provided, looking for user's organization");
       
-      // Debug query
-      console.log(`Checking org_members table for user_id: ${user.id}`);
-      
-      // First try: Get any organization membership for the user with is_default field
+      // Use the security definer function to get org memberships
       const { data: orgMembers, error: memberError } = await supabase
-        .from('org_members')
-        .select('org_id, is_default')
-        .eq('user_id', user.id);
+        .rpc('get_user_org_memberships', { user_id_param: user.id });
       
       console.log("Organization memberships query result:", { orgMembers, error: memberError });
       
@@ -508,22 +502,40 @@ export const getUserOrganizations = async () => {
       return [];
     }
     
-    // Get all orgs the user is a member of with role information
+    // Use the security definer function to get org memberships
     const { data: orgMembers, error: membersError } = await supabase
-      .from('org_members')
-      .select('*, orgs:org_id(*)')
-      .eq('user_id', user.id);
+      .rpc('get_user_org_memberships', { user_id_param: user.id });
     
     if (membersError) {
       console.error("Failed to fetch user's organizations:", membersError);
       return [];
     }
     
-    return orgMembers.map(member => ({
-      ...member.orgs,
-      role: member.role,
-      isDefault: member.is_default
-    }));
+    if (!orgMembers || orgMembers.length === 0) {
+      console.warn("No organization memberships found");
+      return [];
+    }
+    
+    // Get the full organization details
+    const orgIds = orgMembers.map(member => member.org_id);
+    const { data: orgs, error: orgsError } = await supabase
+      .from('orgs')
+      .select('*')
+      .in('id', orgIds);
+      
+    if (orgsError || !orgs) {
+      console.error("Failed to fetch organizations:", orgsError);
+      return [];
+    }
+    
+    // Combine org data with membership data
+    return orgs.map(org => {
+      const membership = orgMembers.find(member => member.org_id === org.id);
+      return {
+        ...org,
+        isDefault: membership?.is_default || false
+      };
+    });
   } catch (error) {
     console.error("Failed to fetch organizations:", error);
     return [];

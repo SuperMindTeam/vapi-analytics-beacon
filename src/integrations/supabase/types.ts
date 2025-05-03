@@ -165,7 +165,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_org_memberships: {
+        Args: { user_id_param: string }
+        Returns: {
+          org_id: string
+          is_default: boolean
+        }[]
+      }
     }
     Enums: {
       app_role: "owner" | "admin" | "member"
