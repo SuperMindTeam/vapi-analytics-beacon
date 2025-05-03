@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { 
   Card,
@@ -263,7 +262,6 @@ const AgentsList: React.FC = () => {
           // Refresh agents list after creating a new agent
           queryClient.invalidateQueries({ queryKey: ["agents", currentOrganization?.id] });
         }}
-        orgId={currentOrganization.id}
       />
     </>
   );
