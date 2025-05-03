@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -7,19 +7,28 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Info } from "lucide-react";
+import { Info, AlertTriangle } from "lucide-react";
+
+interface OrgMembership {
+  org_id: string;
+  is_default: boolean;
+  role?: string;
+}
 
 const Settings = () => {
   const { userId, orgId, user } = useAuth();
+  const [orgMemberships, setOrgMemberships] = useState<OrgMembership[]>([]);
+  const [loading, setLoading] = useState(false);
   
   useEffect(() => {
     const checkUserOrg = async () => {
       if (userId) {
         console.log("Settings page - checking user organization for:", userId);
+        setLoading(true);
         try {
           const { data, error } = await supabase
             .from('org_members')
-            .select('org_id, is_default')
+            .select('org_id, is_default, role')
             .eq('user_id', userId);
           
           if (error) {
@@ -27,13 +36,16 @@ const Settings = () => {
             toast.error(`Error checking organization membership: ${error.message}`);
           } else {
             console.log("Organization memberships found:", data);
-            if (data.length === 0 && userId) {
+            setOrgMemberships(data || []);
+            if (data?.length === 0 && userId) {
               toast.error("No organization membership found for your account");
             }
           }
         } catch (err) {
           console.error("Error in org check:", err);
           toast.error(`Unexpected error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        } finally {
+          setLoading(false);
         }
       }
     };
@@ -49,13 +61,46 @@ const Settings = () => {
       </div>
 
       {!orgId && userId && (
-        <Alert className="mb-6">
-          <Info className="h-4 w-4" />
+        <Alert className="mb-6" variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Organization ID Missing</AlertTitle>
           <AlertDescription>
             Your user account doesn't have a default organization assigned. This might affect some features.
           </AlertDescription>
         </Alert>
+      )}
+
+      {orgMemberships.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Organization Memberships</CardTitle>
+            <CardDescription>Your organization memberships</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {orgMemberships.map((membership, index) => (
+                <div key={index} className="p-4 border rounded-md bg-muted/50">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs">Organization ID</Label>
+                      <div className="font-mono text-sm">{membership.org_id}</div>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Default</Label>
+                      <div>{membership.is_default ? 'Yes' : 'No'}</div>
+                    </div>
+                    {membership.role && (
+                      <div>
+                        <Label className="text-xs">Role</Label>
+                        <div className="capitalize">{membership.role}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid gap-6">

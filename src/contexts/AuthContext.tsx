@@ -34,6 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log("Fetching organization for user:", userId);
       setOrgFetchAttempted(true);
       
+      // Use a more direct query approach
       const { data, error } = await supabase
         .from('org_members')
         .select('org_id')
@@ -44,6 +45,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) {
         console.error("Error fetching user's organization:", error);
         toast.error(`Error retrieving organization: ${error.message}`);
+        
+        // Try a fallback query without the is_default filter
+        const fallbackQuery = await supabase
+          .from('org_members')
+          .select('org_id')
+          .eq('user_id', userId)
+          .limit(1)
+          .single();
+          
+        if (!fallbackQuery.error && fallbackQuery.data) {
+          console.log("Found organization via fallback query:", fallbackQuery.data.org_id);
+          setOrgId(fallbackQuery.data.org_id);
+          return;
+        }
+        
         // Even with an error, we don't want to keep the app in loading state
         setLoading(false);
         return;
@@ -80,6 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSession(currentSession);
           
           if (currentSession?.user) {
+            console.log("User found in session:", currentSession.user.id);
             setUser(currentSession.user);
             setUserId(currentSession.user.id);
             // Fetch organization after user is set
@@ -108,6 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSession(currentSession);
           
           if (currentSession?.user) {
+            console.log("User in auth state change:", currentSession.user.id);
             setUser(currentSession.user);
             setUserId(currentSession.user.id);
             
