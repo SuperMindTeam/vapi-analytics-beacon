@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -125,13 +126,15 @@ export const getAgents = async (): Promise<Agent[]> => {
     
     if (orgError) {
       console.error("Failed to fetch user organizations:", orgError);
-      return [];
+      throw new Error(`Failed to fetch user organizations: ${orgError.message}`);
     }
     
     if (!orgMembers || orgMembers.length === 0) {
       console.warn("User doesn't belong to any organizations");
       return [];
     }
+    
+    console.log("User organizations:", orgMembers);
     
     // Get all organization IDs the user is a member of
     const orgIds = orgMembers.map(member => member.org_id);
@@ -144,8 +147,10 @@ export const getAgents = async (): Promise<Agent[]> => {
     
     if (error) {
       console.error("Failed to fetch agents:", error);
-      return [];
+      throw new Error(`Failed to fetch agents: ${error.message}`);
     }
+    
+    console.log("Agents fetched from database:", agents);
     
     // Transform to match expected format and enrich with VAPI data
     const agentPromises = agents.map(async agent => {
@@ -178,7 +183,7 @@ export const getAgents = async (): Promise<Agent[]> => {
     return formattedAgents;
   } catch (error) {
     console.error("Failed to fetch agents:", error);
-    return [];
+    throw error;
   }
 };
 

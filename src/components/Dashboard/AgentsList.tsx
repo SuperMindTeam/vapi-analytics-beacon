@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { 
   Card,
@@ -19,29 +20,72 @@ import { Plus, Trash, Edit, Loader2, Building } from "lucide-react";
 import { formatDate, capitalize } from "@/utils/formatters";
 import CreateAgentModal from "./CreateAgentModal";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAgents, deleteAgent, getUserOrganizations } from "@/services/vapiService";
+import { getAgents, deleteAgent } from "@/services/vapiService";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
 
 const AgentsList: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const queryClient = useQueryClient();
+  const [organizations, setOrganizations] = useState<any[]>([]);
   
-  // Fetch user organizations using security definer function
+  // Directly get user organizations from database using RPC call
+  const getUserOrganizations = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      
+      // Use the security definer function to get user's organizations
+      const { data, error } = await supabase.rpc('get_user_org_memberships', { 
+        user_id_param: user.id 
+      });
+      
+      if (error) {
+        console.error("Failed to fetch user's organizations:", error);
+        return [];
+      }
+      
+      if (!data || data.length === 0) return [];
+      
+      // Get the full organization details
+      const orgIds = data.map(org => org.org_id);
+      const { data: orgsData, error: orgsError } = await supabase
+        .from('orgs')
+        .select('*')
+        .in('id', orgIds);
+        
+      if (orgsError) {
+        console.error("Failed to fetch organizations:", orgsError);
+        return [];
+      }
+      
+      // Combine org data with membership data
+      const result = orgsData.map(org => {
+        const membership = data.find(m => m.org_id === org.id);
+        return {
+          ...org,
+          isDefault: membership?.is_default || false
+        };
+      });
+      
+      setOrganizations(result);
+      return result;
+    } catch (error) {
+      console.error("Error in getUserOrganizations:", error);
+      return [];
+    }
+  };
+
+  // Get organizations first
   const { 
-    data: organizations,
     isLoading: orgLoading,
     error: orgError 
   } = useQuery({
-    queryKey: ["organizations"],
+    queryKey: ["organizations_direct"],
     queryFn: getUserOrganizations,
     retry: 3,
     staleTime: 60000, // Cache for 1 minute
-    meta: {
-      onError: (error: any) => {
-        console.error("Failed to fetch organizations:", error);
-      }
-    }
   });
   
   // Fetch agents data with proper error handling
@@ -79,7 +123,7 @@ const AgentsList: React.FC = () => {
   
   // Get organization name by id with fallback
   const getOrgName = (orgId: string) => {
-    if (!organizations) return "Unknown";
+    if (!organizations || organizations.length === 0) return "Unknown";
     const org = organizations.find(org => org.id === orgId);
     return org ? org.name : "Unknown";
   };
@@ -125,7 +169,7 @@ const AgentsList: React.FC = () => {
           <Button 
             onClick={() => {
               refetchAgents();
-              queryClient.refetchQueries({ queryKey: ["organizations"] });
+              getUserOrganizations();
             }}
             variant="outline"
             className="mt-4"
@@ -247,7 +291,7 @@ const AgentsList: React.FC = () => {
           // Refresh agents list after creating a new agent
           queryClient.invalidateQueries({ queryKey: ["agents"] });
         }}
-        organizations={organizations || []}
+        organizations={organizations}
       />
     </>
   );

@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Building, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
 
 // Define the props interface for CreateAgentModal
 interface CreateAgentModalProps {
@@ -58,8 +59,59 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
   const [orgId, setOrgId] = useState<string | undefined>(undefined);
   const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
   const [useDefaultVoices, setUseDefaultVoices] = useState(false);
+  const [userOrgs, setUserOrgs] = useState<any[]>([]);
+  const [isLoadingOrgs, setIsLoadingOrgs] = useState(false);
 
-  // Reset form when modal closes
+  // Directly get user organizations from database using RPC call
+  const fetchUserOrgs = async () => {
+    setIsLoadingOrgs(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No authenticated user found");
+      
+      // Use the security definer function to get user's organizations
+      const { data, error } = await supabase.rpc('get_user_org_memberships', { 
+        user_id_param: user.id 
+      });
+      
+      if (error) throw error;
+      
+      // Fetch organization details
+      if (data && data.length > 0) {
+        const orgIds = data.map(org => org.org_id);
+        const { data: orgsData, error: orgsError } = await supabase
+          .from('orgs')
+          .select('*')
+          .in('id', orgIds);
+          
+        if (orgsError) throw orgsError;
+        
+        // Combine org data with membership data
+        const orgsWithMembership = orgsData.map(org => {
+          const membership = data.find(m => m.org_id === org.id);
+          return {
+            ...org,
+            isDefault: membership?.is_default || false
+          };
+        });
+        
+        setUserOrgs(orgsWithMembership);
+        
+        // Set default organization
+        if (orgsWithMembership.length > 0) {
+          const defaultOrg = orgsWithMembership.find(org => org.isDefault);
+          setOrgId(defaultOrg ? defaultOrg.id : orgsWithMembership[0].id);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching organizations:", error);
+      toast.error("Failed to load organizations");
+    } finally {
+      setIsLoadingOrgs(false);
+    }
+  };
+
+  // Reset form when modal closes and fetch organizations when modal opens
   useEffect(() => {
     if (!isOpen) {
       setName("");
@@ -67,9 +119,14 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
       setPrompt("");
       setFirstMessage("");
       setValidationErrors({});
-    } else if (organizations && organizations.length > 0) {
-      // Set default organization when modal opens
-      setOrgId(organizations[0].id);
+    } else {
+      fetchUserOrgs();
+      
+      // If organizations are provided via props, use those instead
+      if (organizations && organizations.length > 0) {
+        setUserOrgs(organizations);
+        setOrgId(organizations[0].id);
+      }
     }
   }, [isOpen, organizations]);
 
@@ -113,6 +170,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
     if (!voiceId) errors.voiceId = true;
     if (!prompt.trim()) errors.prompt = true;
     if (!firstMessage.trim()) errors.firstMessage = true;
+    if (!orgId) errors.orgId = true;
     
     setValidationErrors(errors);
     
@@ -135,6 +193,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
             case 'voiceId': return 'Voice';
             case 'prompt': return 'Agent Prompt';
             case 'firstMessage': return 'First Message';
+            case 'orgId': return 'Organization';
             default: return field;
           }
         }).join(', ');
@@ -143,11 +202,9 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
       return;
     }
     
-    // For organization, we'll use the available one or let the backend handle it
-    const finalOrgId = orgId || (organizations && organizations.length > 0 ? organizations[0].id : undefined);
-    
     // Create agent with updated structure for VAPI API
     try {
+      console.log("Creating agent with organization:", orgId);
       createAgentMutation.mutate({
         name,
         model: {
@@ -165,7 +222,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
           voiceId: voiceId || ""
         },
         firstMessage,
-        org_id: finalOrgId
+        org_id: orgId
       });
     } catch (error) {
       console.error("Error in create agent submission:", error);
@@ -189,7 +246,8 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
     ? predefinedVoices 
     : voices;
 
-  if (isLoadingVoices) {
+  // Show loading state when loading voices or organizations
+  if (isLoadingVoices || isLoadingOrgs) {
     return (
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="sm:max-w-[600px]">
@@ -198,7 +256,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
           </DialogHeader>
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin mr-2 h-6 w-6 border-b-2 border-gray-500 rounded-full"></div>
-            <p>Loading voice options...</p>
+            <p>Loading required data...</p>
           </div>
         </DialogContent>
       </Dialog>
@@ -252,17 +310,17 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
             )}
           </div>
           
-          {/* Organization information */}
-          {organizations && organizations.length > 0 && (
+          {/* Organization selection */}
+          {userOrgs.length > 0 && (
             <div className="grid gap-2">
               <Label>Organization</Label>
               <div className="flex items-center gap-2 h-10 px-3 border rounded-md bg-muted/20">
                 <Building className="h-4 w-4 text-muted-foreground" />
-                <span>{organizations[0].name}</span>
-                {organizations[0].isDefault && <Badge variant="outline" className="ml-2">Default</Badge>}
+                <span>{userOrgs[0].name}</span>
+                {userOrgs[0].isDefault && <Badge variant="outline" className="ml-2">Default</Badge>}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Using your organization: {organizations[0].name}
+                Using your organization: {userOrgs[0].name}
               </p>
             </div>
           )}
