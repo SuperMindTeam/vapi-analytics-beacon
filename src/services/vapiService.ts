@@ -113,7 +113,7 @@ export const createAgent = async ({ name, voiceId, prompt, provider, model }: Cr
     console.log("VAPI agent created:", vapiAgent);
     
     // Now, store the agent details in our database
-    // Using the VAPI agent ID as our agent ID
+    // Using the VAPI agent ID as our agent ID, and storing model and provider as separate columns
     const { data, error } = await supabase
       .from('agents')
       .insert({
@@ -124,8 +124,8 @@ export const createAgent = async ({ name, voiceId, prompt, provider, model }: Cr
         status: vapiAgent.status || 'active',
         phone_number: vapiAgent.phone_number,
         org_id: orgId,
-        provider: provider,
-        model: model,
+        provider, // Store provider directly
+        model, // Store model directly
       })
       .select()
       .single();
