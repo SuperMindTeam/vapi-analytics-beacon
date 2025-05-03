@@ -28,18 +28,33 @@ const AgentsList: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const queryClient = useQueryClient();
   
-  // Fetch user organizations
-  const { data: organizations } = useQuery({
+  // Fetch user organizations using security definer function
+  const { 
+    data: organizations,
+    isLoading: orgLoading,
+    error: orgError 
+  } = useQuery({
     queryKey: ["organizations"],
     queryFn: getUserOrganizations,
+    retry: 3,
+    staleTime: 60000, // Cache for 1 minute
+    onError: (error: any) => {
+      console.error("Failed to fetch organizations:", error);
+    }
   });
   
-  // Fetch agents data with retry and longer staleTime
-  const { data: agents, isLoading, error } = useQuery({
+  // Fetch agents data with proper error handling
+  const { 
+    data: agents, 
+    isLoading: agentsLoading, 
+    error: agentsError,
+    refetch: refetchAgents
+  } = useQuery({
     queryKey: ["agents"],
     queryFn: getAgents,
     retry: 2,
     staleTime: 30000, // 30 seconds
+    enabled: !orgLoading, // Only fetch agents after orgs are loaded
   });
   
   // Delete agent mutation
@@ -54,19 +69,23 @@ const AgentsList: React.FC = () => {
     }
   });
 
-  // Handle agent deletion
-  const handleDeleteAgent = (agentId: string) => {
-    if (confirm("Are you sure you want to delete this agent?")) {
+  // Handle agent deletion with confirmation
+  const handleDeleteAgent = (agentId: string, agentName: string) => {
+    if (confirm(`Are you sure you want to delete agent "${agentName}"?`)) {
       deleteAgentMutation.mutate(agentId);
     }
   };
   
-  // Get organization name by id
+  // Get organization name by id with fallback
   const getOrgName = (orgId: string) => {
     if (!organizations) return "Unknown";
     const org = organizations.find(org => org.id === orgId);
     return org ? org.name : "Unknown";
   };
+  
+  // Check if there are any errors
+  const hasError = !!agentsError || !!orgError;
+  const isLoading = agentsLoading || orgLoading;
   
   // Render loading state
   if (isLoading) {
@@ -85,8 +104,12 @@ const AgentsList: React.FC = () => {
     );
   }
   
-  // Render error state with detailed error message
-  if (error) {
+  // Render error state with detailed error message and retry button
+  if (hasError) {
+    const errorMessage = agentsError instanceof Error 
+      ? agentsError.message 
+      : (orgError instanceof Error ? orgError.message : 'Unknown error occurred');
+      
     return (
       <Card>
         <CardHeader>
@@ -95,10 +118,19 @@ const AgentsList: React.FC = () => {
         <CardContent>
           <Alert variant="destructive">
             <AlertDescription>
-              Failed to load agents. Please try again later.
-              {error instanceof Error ? ` Error: ${error.message}` : ''}
+              Failed to load data. {errorMessage}
             </AlertDescription>
           </Alert>
+          <Button 
+            onClick={() => {
+              refetchAgents();
+              queryClient.refetchQueries({ queryKey: ["organizations"] });
+            }}
+            variant="outline"
+            className="mt-4"
+          >
+            Retry
+          </Button>
         </CardContent>
       </Card>
     );
@@ -174,8 +206,8 @@ const AgentsList: React.FC = () => {
                           variant="ghost" 
                           size="icon" 
                           title="Delete agent"
-                          onClick={() => handleDeleteAgent(agent.id)}
-                          disabled={deleteAgentMutation.isPending}
+                          onClick={() => handleDeleteAgent(agent.id, agent.name)}
+                          disabled={deleteAgentMutation.isPending && agent.id === deleteAgentMutation.variables}
                         >
                           {deleteAgentMutation.isPending && agent.id === deleteAgentMutation.variables ? (
                             <Loader2 size={16} className="animate-spin" />
@@ -207,7 +239,6 @@ const AgentsList: React.FC = () => {
         </CardContent>
       </Card>
       
-      {/* Pass the required props to the CreateAgentModal component */}
       <CreateAgentModal 
         isOpen={isCreateModalOpen} 
         onClose={() => {
