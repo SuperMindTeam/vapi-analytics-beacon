@@ -199,10 +199,10 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
     if (!orgId) {
       console.log("No org_id provided, looking for user's organization");
       
-      // First try: Get any organization membership for the user
+      // First try: Get any organization membership for the user with is_default field
       const { data: orgMembers, error: memberError } = await supabase
         .from('org_members')
-        .select('org_id')
+        .select('org_id, is_default')
         .eq('user_id', user.id);
       
       if (memberError) {
@@ -216,7 +216,7 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
       }
       
       // Prefer default organization if available
-      const defaultOrg = orgMembers.find(member => member.is_default);
+      const defaultOrg = orgMembers.find(member => member.is_default === true);
       if (defaultOrg) {
         orgId = defaultOrg.org_id;
         console.log("Using default organization with ID:", orgId);
