@@ -85,6 +85,7 @@ const fetchFromVapi = async <T>(
     }
 
     const jsonResponse = await response.json();
+    console.log(`API response for ${endpoint}:`, jsonResponse);
     
     // Check if response has a data property, if not return the response directly
     return (jsonResponse.data !== undefined) ? jsonResponse : jsonResponse as T;
@@ -212,6 +213,13 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
     }
     
     // Create agent in VAPI
+    console.log("Sending request to create agent in VAPI with data:", {
+      name: agentData.name,
+      model: agentData.model,
+      voice: agentData.voice,
+      firstMessage: agentData.firstMessage
+    });
+    
     const vapiResponse = await fetchFromVapi<Agent | VapiResponse<Agent>>("/assistant", {
       method: "POST",
       body: JSON.stringify({
@@ -237,6 +245,9 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
       throw new Error("Failed to get agent ID from VAPI response");
     }
     
+    console.log("Got VAPI agent ID:", vapiAgentId);
+    console.log("Saving agent to Supabase database with org_id:", orgId);
+    
     // Save agent to database
     const { data: agent, error } = await supabase
       .from('agents')
@@ -255,6 +266,8 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
       console.error("Failed to save agent to database:", error);
       throw error;
     }
+    
+    console.log("Agent saved successfully to database:", agent);
     
     // Format response to match expected format
     const formattedAgent: Agent = {

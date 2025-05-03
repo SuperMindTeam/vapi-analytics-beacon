@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Dialog, 
   DialogContent, 
@@ -19,7 +19,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge"; // Added missing Badge import
+import { Badge } from "@/components/ui/badge";
 import { createAgent } from "@/services/vapiService";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -69,7 +69,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
   const [orgId, setOrgId] = useState("");
   
   // Find default organization if available
-  React.useEffect(() => {
+  useEffect(() => {
     if (organizations.length > 0) {
       const defaultOrg = organizations.find(org => org.isDefault);
       setOrgId(defaultOrg ? defaultOrg.id : organizations[0].id);
@@ -119,6 +119,15 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
       toast.error("Please fill in all required fields");
       return;
     }
+    
+    // Log to help with debugging
+    console.log("Creating agent with:", {
+      name,
+      voiceId,
+      prompt,
+      firstMessage,
+      orgId,
+    });
     
     // Create agent with updated structure for VAPI API
     createAgentMutation.mutate({
