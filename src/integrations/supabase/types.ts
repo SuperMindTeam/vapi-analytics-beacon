@@ -172,6 +172,10 @@ export type Database = {
           is_default: boolean
         }[]
       }
+      is_org_owner: {
+        Args: { org_id_param: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "owner" | "admin" | "member"

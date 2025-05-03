@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -494,7 +493,7 @@ export const getVoices = async () => {
   }
 };
 
-// New function to get current user's organizations
+// Get current user's organizations using the security definer function
 export const getUserOrganizations = async () => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
