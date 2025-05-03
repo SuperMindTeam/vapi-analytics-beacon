@@ -8,6 +8,13 @@ import { Textarea } from "../ui/textarea";
 import { createAgent } from "@/services/vapiService";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "../ui/select";
 
 interface CreateAgentModalProps {
   open: boolean;
@@ -17,7 +24,7 @@ interface CreateAgentModalProps {
 const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ open, onClose }) => {
   const { orgId } = useAuth();
   const [name, setName] = useState("");
-  const [voiceId, setVoiceId] = useState("echo");
+  const [voiceId, setVoiceId] = useState("burt");
   const [prompt, setPrompt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -51,7 +58,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ open, onClose }) =>
 
   const resetForm = () => {
     setName("");
-    setVoiceId("echo");
+    setVoiceId("burt");
     setPrompt("");
   };
 
@@ -75,20 +82,28 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ open, onClose }) =>
 
           <div className="space-y-2">
             <Label htmlFor="voiceId">Voice</Label>
-            <select
-              id="voiceId"
-              className="w-full border border-gray-300 rounded-md h-10 px-3"
-              value={voiceId}
-              onChange={(e) => setVoiceId(e.target.value)}
-              required
-            >
-              <option value="echo">Echo</option>
-              <option value="alloy">Alloy</option>
-              <option value="fable">Fable</option>
-              <option value="onyx">Onyx</option>
-              <option value="nova">Nova</option>
-              <option value="shimmer">Shimmer</option>
-            </select>
+            <Select value={voiceId} onValueChange={setVoiceId}>
+              <SelectTrigger id="voiceId" className="w-full">
+                <SelectValue placeholder="Select a voice" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="burt">Burt</SelectItem>
+                <SelectItem value="marissa">Marissa</SelectItem>
+                <SelectItem value="andrea">Andrea</SelectItem>
+                <SelectItem value="sarah">Sarah</SelectItem>
+                <SelectItem value="phillip">Phillip</SelectItem>
+                <SelectItem value="steve">Steve</SelectItem>
+                <SelectItem value="joseph">Joseph</SelectItem>
+                <SelectItem value="myra">Myra</SelectItem>
+                <SelectItem value="paula">Paula</SelectItem>
+                <SelectItem value="ryan">Ryan</SelectItem>
+                <SelectItem value="drew">Drew</SelectItem>
+                <SelectItem value="paul">Paul</SelectItem>
+                <SelectItem value="mrb">Mr. B</SelectItem>
+                <SelectItem value="matilda">Matilda</SelectItem>
+                <SelectItem value="mark">Mark</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
