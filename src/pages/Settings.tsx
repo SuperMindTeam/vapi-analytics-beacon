@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Info, AlertTriangle } from "lucide-react";
+import { Info, AlertTriangle, Loader2 } from "lucide-react";
 
 interface OrgMembership {
   org_id: string;
@@ -19,6 +19,36 @@ const Settings = () => {
   const { userId, orgId, user } = useAuth();
   const [orgMemberships, setOrgMemberships] = useState<OrgMembership[]>([]);
   const [loading, setLoading] = useState(false);
+  const [directOrgId, setDirectOrgId] = useState<string | null>(null);
+  
+  // Force refresh org data directly from database
+  useEffect(() => {
+    const fetchDirectOrgData = async () => {
+      if (userId) {
+        try {
+          console.log("Directly fetching default org for user:", userId);
+          const { data, error } = await supabase
+            .from('org_members')
+            .select('org_id')
+            .eq('user_id', userId)
+            .eq('is_default', true)
+            .limit(1)
+            .maybeSingle();
+            
+          if (error) {
+            console.error("Error directly fetching org ID:", error);
+          } else if (data) {
+            console.log("Found direct org ID:", data.org_id);
+            setDirectOrgId(data.org_id);
+          }
+        } catch (err) {
+          console.error("Error in direct org fetch:", err);
+        }
+      }
+    };
+    
+    fetchDirectOrgData();
+  }, [userId]);
   
   useEffect(() => {
     const checkUserOrg = async () => {
@@ -53,6 +83,9 @@ const Settings = () => {
     checkUserOrg();
   }, [userId]);
 
+  // Find default org from memberships
+  const defaultOrg = orgMemberships.find(membership => membership.is_default);
+
   return (
     <div className="container mx-auto py-6">
       <div className="mb-6">
@@ -60,12 +93,29 @@ const Settings = () => {
         <p className="text-muted-foreground">Manage your account settings</p>
       </div>
 
-      {!orgId && userId && (
+      {loading && (
+        <div className="flex items-center gap-2 mb-4">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-muted-foreground">Loading organization data...</span>
+        </div>
+      )}
+
+      {!orgId && userId && !directOrgId && !loading && (
         <Alert className="mb-6" variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Organization ID Missing</AlertTitle>
           <AlertDescription>
             Your user account doesn't have a default organization assigned. This might affect some features.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {((defaultOrg || directOrgId) && !orgId) && (
+        <Alert className="mb-6">
+          <Info className="h-4 w-4" />
+          <AlertTitle>Organization ID Found in Database</AlertTitle>
+          <AlertDescription>
+            A default organization was found in the database ({directOrgId || defaultOrg?.org_id}), but it's not loaded in the current session. Try refreshing the page or signing out and back in.
           </AlertDescription>
         </Alert>
       )}
@@ -122,15 +172,28 @@ const Settings = () => {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="orgId">Organization ID</Label>
+              <Label htmlFor="orgId">Organization ID (Session)</Label>
               <Input 
                 id="orgId" 
                 value={orgId || 'Not available'} 
                 readOnly 
                 className="font-mono bg-muted"
               />
-              <p className="text-xs text-muted-foreground">Your organization's unique identifier</p>
+              <p className="text-xs text-muted-foreground">Your organization's unique identifier from current session</p>
             </div>
+            
+            {directOrgId && !orgId && (
+              <div className="space-y-2">
+                <Label htmlFor="directOrgId">Organization ID (Database)</Label>
+                <Input 
+                  id="directOrgId" 
+                  value={directOrgId} 
+                  readOnly 
+                  className="font-mono bg-muted border-yellow-500"
+                />
+                <p className="text-xs text-yellow-500">This org ID was found directly in the database but is not loaded in your session</p>
+              </div>
+            )}
             
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
