@@ -29,6 +29,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Function to fetch and set the user's organization ID
   const fetchUserOrg = async (userId: string) => {
     try {
+      console.log("Fetching organization for user:", userId);
+      
       const { data, error } = await supabase
         .from('org_members')
         .select('org_id')
@@ -38,6 +40,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error("Error fetching user's organization:", error);
+        
+        // If no default org found, try without the is_default filter
+        const { data: anyOrgData, error: anyOrgError } = await supabase
+          .from('org_members')
+          .select('org_id')
+          .eq('user_id', userId)
+          .single();
+          
+        if (!anyOrgError && anyOrgData) {
+          console.log("Found non-default organization:", anyOrgData.org_id);
+          setOrgId(anyOrgData.org_id);
+        } else {
+          console.error("No organization found for user:", anyOrgError);
+        }
+        
         return;
       }
 
