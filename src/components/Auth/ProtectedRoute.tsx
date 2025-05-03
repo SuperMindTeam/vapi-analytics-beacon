@@ -12,7 +12,7 @@ const ProtectedRoute = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowLoading(false);
-    }, 1000); // 1 second maximum loading time (reduced from 2 seconds)
+    }, 800); // 0.8 second maximum loading time (reduced from 1 second)
     
     return () => clearTimeout(timer);
   }, []);

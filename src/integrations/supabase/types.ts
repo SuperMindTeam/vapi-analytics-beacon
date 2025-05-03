@@ -188,6 +188,14 @@ export type Database = {
         Args: { org_uuid: string }
         Returns: boolean
       }
+      is_user_org_member: {
+        Args: { org_id_param: string; user_id_param: string }
+        Returns: boolean
+      }
+      is_user_org_owner: {
+        Args: { org_id_param: string; user_id_param: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "owner" | "admin" | "member"

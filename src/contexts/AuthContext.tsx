@@ -13,7 +13,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
   signOut: () => Promise<void>;
-  refreshOrgId: () => Promise<void>; // New function to manually refresh org ID
+  refreshOrgId: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -35,7 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log("Fetching organization for user:", userId);
       setOrgFetchAttempted(true);
       
-      // Direct query to get default org membership - now using maybeSingle for better error handling
+      // Direct query to get default org membership - using maybeSingle for better error handling
       const { data, error } = await supabase
         .from('org_members')
         .select('org_id')
@@ -57,7 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (fallbackError) {
           console.error("Error fetching any organization:", fallbackError.message);
           toast.error("Failed to load your organization data", {
-            description: "Some features may not work correctly",
+            description: "Some features may not work correctly. Please refresh or contact support.",
             duration: 5000,
           });
         } else if (fallbackData?.org_id) {
@@ -85,7 +85,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Add a function to manually refresh the org ID
   const refreshOrgId = async () => {
     if (userId) {
+      setLoading(true);
       await fetchUserOrg(userId);
+      toast.success("Organization data refreshed");
     }
   };
 
@@ -178,7 +180,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log("Safety timeout reached: forcing loading state to complete");
         setLoading(false);
       }
-    }, 2000); // Reduced from 3 seconds to 2 seconds for faster experience
+    }, 1500); // Reduced from 2 seconds to 1.5 seconds for faster experience
 
     return () => clearTimeout(safetyTimeout);
   }, [loading]);
@@ -257,7 +259,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn, 
     signUp, 
     signOut,
-    refreshOrgId // Add the new function to the context
+    refreshOrgId
   };
 
   return (
