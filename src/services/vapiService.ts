@@ -198,6 +198,8 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
     // Get user's default organization if not specified
     let orgId = agentData.org_id;
     if (!orgId) {
+      console.log("No org_id provided, looking for default organization");
+      
       const { data: orgMembers, error: orgError } = await supabase
         .from('org_members')
         .select('org_id')
@@ -205,11 +207,64 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
         .eq('is_default', true)
         .single();
       
-      if (orgError || !orgMembers) {
-        throw new Error("No default organization found for user");
+      if (orgError) {
+        console.log("Error finding default organization:", orgError);
+        console.log("Will attempt to find any organization for the user");
+        
+        // Try to find any organization the user belongs to
+        const { data: anyOrgMembers, error: anyOrgError } = await supabase
+          .from('org_members')
+          .select('org_id')
+          .eq('user_id', user.id)
+          .limit(1)
+          .single();
+          
+        if (anyOrgError || !anyOrgMembers) {
+          console.log("No organizations found for user. Creating a default organization.");
+          
+          // Create a new organization for the user
+          const orgName = `${user.email?.split('@')[0] || 'user'}-org`;
+          const { data: newOrg, error: createOrgError } = await supabase
+            .from('orgs')
+            .insert({
+              name: orgName,
+              email: user.email
+            })
+            .select()
+            .single();
+            
+          if (createOrgError || !newOrg) {
+            throw new Error("Failed to create organization: " + createOrgError?.message);
+          }
+          
+          // Add user to the new organization as owner
+          const { error: addMemberError } = await supabase
+            .from('org_members')
+            .insert({
+              org_id: newOrg.id,
+              user_id: user.id,
+              role: 'owner',
+              is_default: true
+            });
+            
+          if (addMemberError) {
+            throw new Error("Failed to add user to organization: " + addMemberError.message);
+          }
+          
+          orgId = newOrg.id;
+          console.log("Created new organization:", newOrg.name, "with ID:", orgId);
+        } else {
+          orgId = anyOrgMembers.org_id;
+          console.log("Found organization with ID:", orgId);
+        }
+      } else {
+        orgId = orgMembers.org_id;
+        console.log("Found default organization with ID:", orgId);
       }
-      
-      orgId = orgMembers.org_id;
+    }
+    
+    if (!orgId) {
+      throw new Error("Could not determine organization ID");
     }
     
     // Create agent in VAPI

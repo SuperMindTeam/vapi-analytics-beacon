@@ -1,183 +1,118 @@
-
-import React, { useState, useEffect } from "react";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
+import React, { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
   DialogTitle,
-  DialogFooter,
-  DialogDescription
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { 
-  Select, 
-  SelectContent, 
-  SelectGroup, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { createAgent, getVoices, getUserOrganizations } from "@/services/vapiService";
+import { toast } from "@/components/ui/sonner";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Building } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { createAgent } from "@/services/vapiService";
-import { toast } from "sonner";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Building, AlertTriangle } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
-// Updated VAPI approved voice options for ElevenLabs
-const voiceOptions = [
-  { id: "burt", name: "Burt", description: "Deep, authoritative male voice" },
-  { id: "marissa", name: "Marissa", description: "Professional female voice" },
-  { id: "andrea", name: "Andrea", description: "Warm, friendly female voice" },
-  { id: "sarah", name: "Sarah", description: "Clear, articulate female voice" },
-  { id: "phillip", name: "Phillip", description: "Confident, mature male voice" },
-  { id: "steve", name: "Steve", description: "Casual, approachable male voice" },
-  { id: "joseph", name: "Joseph", description: "Warm, trusting male voice" },
-  { id: "myra", name: "Myra", description: "Gentle, soothing female voice" },
-  { id: "paula", name: "Paula", description: "Friendly, conversational female voice" },
-  { id: "ryan", name: "Ryan", description: "Energetic male voice" },
-  { id: "drew", name: "Drew", description: "Calm, measured male voice" },
-  { id: "paul", name: "Paul", description: "Clear, professional male voice" },
-  { id: "mrb", name: "MrB", description: "Distinctive character voice" },
-  { id: "matilda", name: "Matilda", description: "Lively, expressive female voice" },
-  { id: "mark", name: "Mark", description: "Natural, conversational male voice" }
-];
-
-interface Organization {
-  id: string;
-  name: string;
-  role: string;
-  isDefault: boolean;
-}
-
-interface CreateAgentModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  organizations: Organization[];
-}
-
-const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ 
-  isOpen, 
-  onClose,
-  organizations = []
-}) => {
+const CreateAgentModal = () => {
+  const [isOpen, setIsOpen] = useState(false);
   const [name, setName] = useState("");
-  const [voiceId, setVoiceId] = useState("");
+  const [voiceId, setVoiceId] = useState<string | undefined>(undefined);
   const [prompt, setPrompt] = useState("");
-  const [firstMessage, setFirstMessage] = useState("Hello! How can I assist you today?");
-  const [orgId, setOrgId] = useState("");
-  const [validationErrors, setValidationErrors] = useState<{[key: string]: boolean}>({});
-  
-  // Find default organization if available
-  useEffect(() => {
-    if (organizations.length > 0) {
-      const defaultOrg = organizations.find(org => org.isDefault);
-      setOrgId(defaultOrg ? defaultOrg.id : organizations[0].id);
-    }
-  }, [organizations]);
-  
-  const queryClient = useQueryClient();
+  const [firstMessage, setFirstMessage] = useState("");
+  const [orgId, setOrgId] = useState<string | undefined>(undefined);
+  const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
+  const [isCreating, setIsCreating] = useState(false);
 
-  // Create agent mutation using Tanstack Query
-  const createAgentMutation = useMutation({
-    mutationFn: (agentData: { 
-      name: string; 
-      model: {
-        provider: string;
-        model: string;
-        messages: Array<{role: string; content: string}>;
-      };
-      voice: {
-        provider: string;
-        voiceId: string;
-      };
-      firstMessage: string;
-      org_id: string;
-    }) => createAgent(agentData),
-    onSuccess: () => {
-      // Reset form
-      setName("");
-      setVoiceId("");
-      setPrompt("");
-      setFirstMessage("Hello! How can I assist you today?");
-      setValidationErrors({});
-      
-      // Refresh agents list and close modal
-      queryClient.invalidateQueries({ queryKey: ["agents"] });
-      toast.success("Agent created successfully!");
-      onClose();
-    },
-    onError: (error) => {
-      console.error("Error creating agent:", error);
-      toast.error(`Failed to create agent: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+  const { data: voices, isLoading: isLoadingVoices, error: voicesError } = useQuery({
+    queryKey: ['voices'],
+    queryFn: getVoices,
   });
 
+  const { data: organizations, isLoading: isLoadingOrgs, error: orgsError } = useQuery({
+    queryKey: ['organizations'],
+    queryFn: getUserOrganizations,
+  });
+
+  const createAgentMutation = useMutation({
+    mutationFn: createAgent,
+    onSuccess: () => {
+      toast.success("Agent created successfully!");
+      setIsOpen(false);
+      setName("");
+      setVoiceId(undefined);
+      setPrompt("");
+      setFirstMessage("");
+      setOrgId(undefined);
+      setIsCreating(false);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to create agent");
+      setIsCreating(false);
+    },
+  });
+
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (!open) {
+      // Reset form when modal is closed
+      setName("");
+      setVoiceId(undefined);
+      setPrompt("");
+      setFirstMessage("");
+      setOrgId(undefined);
+      setValidationErrors({});
+    }
+  };
+
+  // Validation function that doesn't check for organization since it should be automatically created
   const validateForm = () => {
-    const errors: {[key: string]: boolean} = {};
+    const errors: Record<string, boolean> = {};
     
     if (!name.trim()) errors.name = true;
     if (!voiceId) errors.voiceId = true;
     if (!prompt.trim()) errors.prompt = true;
     if (!firstMessage.trim()) errors.firstMessage = true;
     
-    // Only validate orgId if we have multiple organizations and none is selected
-    // If there's at least one organization available, we'll use it automatically
-    if (organizations.length > 0 && !orgId) errors.orgId = true;
-    
+    // Don't validate orgId as it should be handled automatically
     setValidationErrors(errors);
     
-    // Return true if no errors
+    // Form is valid if there are no errors
     return Object.keys(errors).length === 0;
   };
 
+  // Handle form submission with updated logic for organizations
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Perform validation
     const isValid = validateForm();
     
     if (!isValid) {
-      // Filter out orgId from error messages if we have at least one organization
       const missingFields = Object.keys(validationErrors)
-        .filter(field => {
-          // If we have organizations and the field is 'orgId', don't include it in the error message
-          if (field === 'orgId' && organizations.length > 0) {
-            return false;
-          }
-          return true;
-        })
         .map(field => {
           switch (field) {
             case 'name': return 'Agent Name';
             case 'voiceId': return 'Voice';
             case 'prompt': return 'Agent Prompt';
             case 'firstMessage': return 'First Message';
-            case 'orgId': return 'Organization';
             default: return field;
           }
         }).join(', ');
       
-      // Only show toast if there are other missing fields
-      if (missingFields) {
-        toast.error(`Please fill in all required fields: ${missingFields}`);
-      }
+      toast.error(`Please fill in all required fields: ${missingFields}`);
       return;
     }
     
-    // Set organization ID if not already set but organizations are available
-    const finalOrgId = orgId || (organizations.length > 0 ? organizations[0].id : "");
+    // For organization, we'll use the available one or let the backend handle it
+    // This assumes the backend will use the user's default organization if none is specified
+    const finalOrgId = orgId || (organizations.length > 0 ? organizations[0].id : undefined);
     
-    if (!finalOrgId && organizations.length === 0) {
-      toast.error("No organization available. Please create an organization first.");
-      return;
-    }
+    setIsCreating(true);
     
-    // Log to help with debugging
-    console.log("Creating agent with:", {
+    console.log("Creating agent with data:", {
       name,
       voiceId,
       prompt,
@@ -190,7 +125,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
       name,
       model: {
         provider: "openai",
-        model: "gpt-4",
+        model: "gpt-4-turbo",
         messages: [
           {
             role: "system",
@@ -207,191 +142,164 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
     });
   };
 
+  const handleVoiceSelect = (value: string) => {
+    setVoiceId(value);
+  };
+
+  if (isLoadingVoices || isLoadingOrgs) return <div>Loading...</div>;
+  if (voicesError || orgsError) return <div>Error loading data</div>;
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px]">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Create New Agent</DialogTitle>
-            <DialogDescription>
-              Fill all required fields to create a new voice agent.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid gap-6 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name" className={validationErrors.name ? "text-destructive" : ""}>
-                Agent Name *
-              </Label>
-              <Input
-                id="name"
-                placeholder="e.g., Customer Support Agent"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  setValidationErrors({...validationErrors, name: false});
-                }}
-                className={validationErrors.name ? "border-destructive" : ""}
-                required
-                disabled={createAgentMutation.isPending}
-              />
-              {validationErrors.name && (
-                <p className="text-xs text-destructive">Agent name is required</p>
-              )}
-            </div>
-            
-            {organizations.length > 0 && (
-              <div className="grid gap-2">
-                <Label htmlFor="organization" className={validationErrors.orgId ? "text-destructive" : ""}>
-                  Organization
-                </Label>
-                <Select 
-                  value={orgId} 
-                  onValueChange={(value) => {
-                    setOrgId(value);
-                    setValidationErrors({...validationErrors, orgId: false});
-                  }}
-                  disabled={createAgentMutation.isPending || organizations.length <= 1}
-                >
-                  <SelectTrigger className={`flex items-center gap-2 ${validationErrors.orgId ? "border-destructive" : ""}`}>
-                    <Building className="h-4 w-4 text-muted-foreground" />
-                    <SelectValue placeholder="Select an organization" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {organizations.map((org) => (
-                        <SelectItem key={org.id} value={org.id}>
-                          <div className="flex items-center gap-2">
-                            <Building className="h-4 w-4 text-muted-foreground" />
-                            <span>{org.name}</span>
-                            {org.isDefault && (
-                              <Badge variant="outline" className="ml-2">Default</Badge>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                {organizations.length === 1 && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Using your default organization: {organizations[0].name}
-                  </p>
-                )}
-              </div>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button variant="outline">Create Agent</Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Create New Agent</DialogTitle>
+          <DialogDescription>
+            Create a new AI agent for your organization
+          </DialogDescription>
+        </DialogHeader>
+        
+        <form onSubmit={handleSubmit} className="space-y-6 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="name">Agent Name</Label>
+            <Input
+              id="name"
+              placeholder="Enter agent name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              disabled={createAgentMutation.isPending}
+            />
+            {validationErrors.name && (
+              <p className="text-sm text-red-500">Agent name is required</p>
             )}
-            
+          </div>
+          
+          {/* Organization field - shown only when multiple organizations exist */}
+          {organizations.length > 1 && (
             <div className="grid gap-2">
-              <Label htmlFor="voice" className={validationErrors.voiceId ? "text-destructive" : ""}>
-                Voice *
+              <Label htmlFor="organization">
+                Organization
               </Label>
               <Select 
-                value={voiceId} 
+                value={orgId} 
                 onValueChange={(value) => {
-                  setVoiceId(value);
-                  setValidationErrors({...validationErrors, voiceId: false});
+                  setOrgId(value);
                 }}
-                required
                 disabled={createAgentMutation.isPending}
               >
-                <SelectTrigger className={validationErrors.voiceId ? "border-destructive" : ""}>
-                  <SelectValue placeholder="Select a voice" />
+                <SelectTrigger className="flex items-center gap-2">
+                  <Building className="h-4 w-4 text-muted-foreground" />
+                  <SelectValue placeholder="Select organization" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {voiceOptions.map((voice) => (
-                      <SelectItem key={voice.id} value={voice.id}>
-                        <div>
-                          <span className="font-medium">{voice.name}</span>
-                          <span className="text-xs text-muted-foreground ml-2">
-                            {voice.description}
-                          </span>
-                        </div>
+                    {organizations.map((org) => (
+                      <SelectItem 
+                        key={org.id} 
+                        value={org.id}
+                        className="flex items-center gap-2"
+                      >
+                        <span>{org.name}</span>
+                        {org.isDefault && <Badge variant="outline">Default</Badge>}
                       </SelectItem>
                     ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              {validationErrors.voiceId && (
-                <p className="text-xs text-destructive">Voice is required</p>
-              )}
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="prompt" className={validationErrors.prompt ? "text-destructive" : ""}>
-                Agent Prompt *
-              </Label>
-              <Textarea
-                id="prompt"
-                placeholder="Define how your agent should behave and respond..."
-                value={prompt}
-                onChange={(e) => {
-                  setPrompt(e.target.value);
-                  setValidationErrors({...validationErrors, prompt: false});
-                }}
-                className={validationErrors.prompt ? "border-destructive" : ""}
-                rows={6}
-                required
-                disabled={createAgentMutation.isPending}
-              />
               <p className="text-xs text-muted-foreground mt-1">
-                Write a detailed prompt that defines your agent's persona, 
-                knowledge, and how it should handle calls.
+                Select which organization this agent belongs to
               </p>
-              {validationErrors.prompt && (
-                <p className="text-xs text-destructive">Agent prompt is required</p>
-              )}
             </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="firstMessage" className={validationErrors.firstMessage ? "text-destructive" : ""}>
-                First Message *
-              </Label>
-              <Input
-                id="firstMessage"
-                placeholder="Hello! How can I assist you today?"
-                value={firstMessage}
-                onChange={(e) => {
-                  setFirstMessage(e.target.value);
-                  setValidationErrors({...validationErrors, firstMessage: false});
-                }}
-                className={validationErrors.firstMessage ? "border-destructive" : ""}
-                required
-                disabled={createAgentMutation.isPending}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                First message the agent will say when a call connects.
-              </p>
-              {validationErrors.firstMessage && (
-                <p className="text-xs text-destructive">First message is required</p>
-              )}
-            </div>
-          </div>
+          )}
           
-          <DialogFooter>
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={onClose}
+          {/* Show organization info if exactly one exists */}
+          {organizations.length === 1 && (
+            <div className="grid gap-2">
+              <Label>Organization</Label>
+              <div className="flex items-center gap-2 h-10 px-3 border rounded-md bg-muted/20">
+                <Building className="h-4 w-4 text-muted-foreground" />
+                <span>{organizations[0].name}</span>
+                {organizations[0].isDefault && <Badge variant="outline" className="ml-2">Default</Badge>}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Using your organization: {organizations[0].name}
+              </p>
+            </div>
+          )}
+          
+          {/* Show message if no organizations */}
+          {organizations.length === 0 && (
+            <div className="p-4 border rounded-md bg-amber-50 text-amber-800">
+              <p className="text-sm font-medium">No organizations found</p>
+              <p className="text-xs mt-1">
+                You should have a default organization created with your account.
+                The system will attempt to use your default organization.
+              </p>
+            </div>
+          )}
+
+          <div className="grid gap-2">
+            <Label htmlFor="voice">Voice</Label>
+            <Select onValueChange={handleVoiceSelect} value={voiceId} disabled={createAgentMutation.isPending}>
+              <SelectTrigger className="flex items-center gap-2">
+                <SelectValue placeholder="Select a voice" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {voices && voices.map((voice) => (
+                    <SelectItem key={voice.voice_id} value={voice.voice_id}>
+                      {voice.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            {validationErrors.voiceId && (
+              <p className="text-sm text-red-500">Voice is required</p>
+            )}
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="prompt">Agent Prompt</Label>
+            <Input
+              id="prompt"
+              placeholder="Enter agent prompt"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              required
               disabled={createAgentMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button 
-              type="submit"
-              className="bg-[hsl(var(--dashboard-purple))] hover:bg-[hsl(var(--dashboard-purple))/0.9]"
+            />
+            {validationErrors.prompt && (
+              <p className="text-sm text-red-500">Agent prompt is required</p>
+            )}
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="firstMessage">First Message</Label>
+            <Input
+              id="firstMessage"
+              placeholder="Enter first message"
+              value={firstMessage}
+              onChange={(e) => setFirstMessage(e.target.value)}
+              required
               disabled={createAgentMutation.isPending}
-            >
-              {createAgentMutation.isPending ? (
-                <>
-                  <Loader2 size={16} className="mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                "Create Agent"
-              )}
-            </Button>
-          </DialogFooter>
+            />
+            {validationErrors.firstMessage && (
+              <p className="text-sm text-red-500">First message is required</p>
+            )}
+          </div>
+
+          <Button type="submit" className="w-full" disabled={createAgentMutation.isPending}>
+            {createAgentMutation.isPending ? (
+              <>Creating...</>
+            ) : (
+              "Create Agent"
+            )}
+          </Button>
         </form>
       </DialogContent>
     </Dialog>
