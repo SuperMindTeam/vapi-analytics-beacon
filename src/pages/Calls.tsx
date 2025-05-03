@@ -467,24 +467,28 @@ const Calls: React.FC = () => {
                     return null;
                   }
                   
+                  // Determine if this is an AI/agent message or a customer/user message
+                  const isAIMessage = message.role === 'ai' || message.role === 'agent';
+                  const isCustomerMessage = message.role === 'customer' || message.role === 'user';
+                  
                   return (
                     <div 
                       key={index} 
-                      className={`flex ${message.role === 'ai' || message.role === 'agent' ? 'justify-start' : 'justify-end'}`}
+                      className={`flex ${isAIMessage ? 'justify-end' : isCustomerMessage ? 'justify-start' : 'justify-center'}`}
                     >
                       <div 
                         className={`max-w-[70%] p-3 rounded-lg ${
-                          message.role === 'ai' || message.role === 'agent'
-                            ? 'bg-gray-100 text-gray-800' 
-                            : message.role === 'system'
-                              ? 'bg-red-50 text-red-700 border border-red-200'
-                              : 'bg-primary text-primary-foreground'
+                          isAIMessage
+                            ? 'bg-primary text-primary-foreground' 
+                            : isCustomerMessage
+                              ? 'bg-gray-100 text-gray-800'
+                              : 'bg-red-50 text-red-700 border border-red-200'
                         }`}
                       >
                         <div className="text-sm">{message.content}</div>
                         <div className="text-xs mt-1 opacity-70 text-right">
                           {message.timestamp && format(new Date(message.timestamp), 'h:mm a')}
-                          {(message.role === 'ai' || message.role === 'agent') && (
+                          {isAIMessage && (
                             <span className="ml-1 text-xs">Sent by {selectedCall.agentName || 'AI'}</span>
                           )}
                         </div>
