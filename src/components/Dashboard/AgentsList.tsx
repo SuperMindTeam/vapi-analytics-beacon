@@ -40,6 +40,8 @@ const AgentsList: React.FC = () => {
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
   const [isDeleting, setIsDeleting] = useState(false);
 
+  console.log("AgentsList rendering with orgId:", orgId);
+
   // Fetch agents
   const {
     data: agents = [],
@@ -49,9 +51,11 @@ const AgentsList: React.FC = () => {
     refetch,
   } = useQuery({
     queryKey: ['agents', orgId],
-    queryFn: getAgents,
+    queryFn: () => getAgents(),
     enabled: !!orgId,
   });
+
+  console.log("Agents data:", agents);
 
   const handleDeleteClick = (agentId: string, agentName: string) => {
     setSelectedAgentId(agentId);
@@ -149,7 +153,7 @@ const AgentsList: React.FC = () => {
         </div>
       )}
 
-      {!isLoading && !isError && agents.length === 0 && (
+      {!isLoading && !isError && agents?.length === 0 && (
         <div className="bg-background border rounded-lg py-12 text-center">
           <h3 className="text-lg font-medium">No agents found</h3>
           <p className="text-muted-foreground mt-1">
@@ -165,7 +169,7 @@ const AgentsList: React.FC = () => {
         </div>
       )}
 
-      {!isLoading && !isError && agents.length > 0 && (
+      {!isLoading && !isError && agents?.length > 0 && (
         <div className="overflow-hidden rounded-md border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
