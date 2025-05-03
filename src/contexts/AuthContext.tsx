@@ -43,6 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error("Error fetching user's organization:", error);
+        toast.error(`Error retrieving organization: ${error.message}`);
         // Even with an error, we don't want to keep the app in loading state
         setLoading(false);
         return;
@@ -53,10 +54,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setOrgId(data.org_id);
       } else {
         console.log("No default organization found for user");
+        toast.warning("No default organization found for your account");
         setOrgId(null);
       }
     } catch (error) {
       console.error("Error in fetchUserOrg:", error);
+      toast.error(`Unexpected error retrieving organization: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       // Always make sure to finish loading regardless of outcome
       setLoading(false);

@@ -5,6 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/components/ui/sonner";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Info } from "lucide-react";
 
 const Settings = () => {
   const { userId, orgId, user } = useAuth();
@@ -21,11 +24,16 @@ const Settings = () => {
           
           if (error) {
             console.error("Error fetching organization data:", error);
+            toast.error(`Error checking organization membership: ${error.message}`);
           } else {
             console.log("Organization memberships found:", data);
+            if (data.length === 0 && userId) {
+              toast.error("No organization membership found for your account");
+            }
           }
         } catch (err) {
           console.error("Error in org check:", err);
+          toast.error(`Unexpected error: ${err instanceof Error ? err.message : 'Unknown error'}`);
         }
       }
     };
@@ -39,6 +47,16 @@ const Settings = () => {
         <h1 className="text-3xl font-bold">Settings</h1>
         <p className="text-muted-foreground">Manage your account settings</p>
       </div>
+
+      {!orgId && userId && (
+        <Alert className="mb-6">
+          <Info className="h-4 w-4" />
+          <AlertTitle>Organization ID Missing</AlertTitle>
+          <AlertDescription>
+            Your user account doesn't have a default organization assigned. This might affect some features.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-6">
         <Card>
