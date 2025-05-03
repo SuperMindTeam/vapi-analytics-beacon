@@ -123,7 +123,10 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
     if (!voiceId) errors.voiceId = true;
     if (!prompt.trim()) errors.prompt = true;
     if (!firstMessage.trim()) errors.firstMessage = true;
-    if (!orgId) errors.orgId = true;
+    
+    // Only validate orgId if we have multiple organizations and none is selected
+    // If there's at least one organization available, we'll use it automatically
+    if (organizations.length > 0 && !orgId) errors.orgId = true;
     
     setValidationErrors(errors);
     
@@ -138,18 +141,38 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
     const isValid = validateForm();
     
     if (!isValid) {
-      const missingFields = Object.keys(validationErrors).map(field => {
-        switch (field) {
-          case 'name': return 'Agent Name';
-          case 'voiceId': return 'Voice';
-          case 'prompt': return 'Agent Prompt';
-          case 'firstMessage': return 'First Message';
-          case 'orgId': return 'Organization';
-          default: return field;
-        }
-      }).join(', ');
+      // Filter out orgId from error messages if we have at least one organization
+      const missingFields = Object.keys(validationErrors)
+        .filter(field => {
+          // If we have organizations and the field is 'orgId', don't include it in the error message
+          if (field === 'orgId' && organizations.length > 0) {
+            return false;
+          }
+          return true;
+        })
+        .map(field => {
+          switch (field) {
+            case 'name': return 'Agent Name';
+            case 'voiceId': return 'Voice';
+            case 'prompt': return 'Agent Prompt';
+            case 'firstMessage': return 'First Message';
+            case 'orgId': return 'Organization';
+            default: return field;
+          }
+        }).join(', ');
       
-      toast.error(`Please fill in all required fields: ${missingFields}`);
+      // Only show toast if there are other missing fields
+      if (missingFields) {
+        toast.error(`Please fill in all required fields: ${missingFields}`);
+      }
+      return;
+    }
+    
+    // Set organization ID if not already set but organizations are available
+    const finalOrgId = orgId || (organizations.length > 0 ? organizations[0].id : "");
+    
+    if (!finalOrgId && organizations.length === 0) {
+      toast.error("No organization available. Please create an organization first.");
       return;
     }
     
@@ -159,7 +182,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
       voiceId,
       prompt,
       firstMessage,
-      orgId,
+      orgId: finalOrgId,
     });
     
     // Create agent with updated structure for VAPI API
@@ -180,7 +203,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
         voiceId: voiceId
       },
       firstMessage,
-      org_id: orgId
+      org_id: finalOrgId
     });
   };
 
@@ -220,7 +243,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
             {organizations.length > 0 && (
               <div className="grid gap-2">
                 <Label htmlFor="organization" className={validationErrors.orgId ? "text-destructive" : ""}>
-                  Organization *
+                  Organization
                 </Label>
                 <Select 
                   value={orgId} 
@@ -228,8 +251,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
                     setOrgId(value);
                     setValidationErrors({...validationErrors, orgId: false});
                   }}
-                  required
-                  disabled={createAgentMutation.isPending}
+                  disabled={createAgentMutation.isPending || organizations.length <= 1}
                 >
                   <SelectTrigger className={`flex items-center gap-2 ${validationErrors.orgId ? "border-destructive" : ""}`}>
                     <Building className="h-4 w-4 text-muted-foreground" />
@@ -251,11 +273,10 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
                     </SelectGroup>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Organization the agent will belong to
-                </p>
-                {validationErrors.orgId && (
-                  <p className="text-xs text-destructive">Organization is required</p>
+                {organizations.length === 1 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Using your default organization: {organizations[0].name}
+                  </p>
                 )}
               </div>
             )}
