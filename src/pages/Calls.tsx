@@ -9,6 +9,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from '@/components/ui/input';
 
+interface Message {
+  role: string;
+  content: string;
+  timestamp: string;
+}
+
 interface Call {
   id: string;
   assistantId: string;
@@ -21,14 +27,9 @@ interface Call {
     number: string;
   };
   endedReason?: string;
-  // Additional fields for conversation
-  messages?: {
-    role: string;
-    content: string;
-    timestamp: string;
-  }[];
-  // Preview message for the list view
+  messages?: Message[];
   previewMessage?: string;
+  agentName?: string; // Added agent name property
 }
 
 const Calls: React.FC = () => {
@@ -46,11 +47,13 @@ const Calls: React.FC = () => {
         const callsData = await getCalls();
         
         if (Array.isArray(callsData)) {
-          // Add mock messages for demo purposes
+          // Process calls data to include real messages and agent names
           const enhancedCalls = callsData.map(call => ({
             ...call,
-            messages: generateMockMessages(),
-            previewMessage: generatePreviewMessage()
+            // Use real messages if they exist, otherwise provide mock messages for demo
+            messages: call.messages || generateMessagesForCall(call.id),
+            previewMessage: call.previewMessage || getFirstCustomerMessage(call.messages) || "No message content",
+            agentName: getAgentName(call.assistantId) // Get agent name based on assistantId
           }));
           
           setCalls(enhancedCalls);
@@ -73,50 +76,61 @@ const Calls: React.FC = () => {
     fetchCalls();
   }, []);
 
-  // Helper functions to generate mock data
-  const generateMockMessages = () => {
-    const mockMessages = [
-      {
-        role: 'customer',
-        content: 'Hi, I need to cancel my reservation.',
-        timestamp: new Date(Date.now() - 3600000).toISOString()
-      },
-      {
-        role: 'ai',
-        content: 'No problem! Just so you know, you may cancel before 2 hours of the reservation with no charge. After that, canceling may trigger a fee of 20 dollars per guest. What\'s the name for the reservation?',
-        timestamp: new Date(Date.now() - 3500000).toISOString()
-      },
-      {
-        role: 'customer',
-        content: 'Aaron, aaron Last name is Judd, j u d d.',
-        timestamp: new Date(Date.now() - 3400000).toISOString()
-      },
-      {
-        role: 'ai',
-        content: "I'll cancel your reservation, so you're all set. Is there anything else I can help you with?",
-        timestamp: new Date(Date.now() - 3300000).toISOString()
-      },
-      {
-        role: 'customer',
-        content: "That's all.",
-        timestamp: new Date(Date.now() - 3200000).toISOString()
-      }
-    ];
-    return mockMessages;
+  // Helper function to get the first customer message as preview
+  const getFirstCustomerMessage = (messages?: Message[]): string | undefined => {
+    if (!messages || messages.length === 0) return undefined;
+    const firstCustomerMessage = messages.find(msg => msg.role.toLowerCase() === 'customer' || msg.role.toLowerCase() === 'user');
+    return firstCustomerMessage?.content;
   };
 
-  const generatePreviewMessage = () => {
-    const previewMessages = [
-      "Hi, I need to cancel my reservation.",
-      "Yeah, I was wondering if I could...",
-      "No messages exist",
-      "Hi. Can I please speak to someone...",
-      "Okay.",
-      "Yeah. I'd like to get a reservation...",
-      "Reservation.",
-      "I wanted to change a reservation..."
+  // Helper function to get agent name - in a real app, this would fetch from your agents database
+  const getAgentName = (assistantId?: string): string => {
+    // This is a placeholder. In a real app, you would fetch the agent name based on the ID
+    // For now, we'll use a mapping of agent IDs to names or return a default
+    const agentNameMap: Record<string, string> = {
+      'asst_123456': 'Restaurant Assistant',
+      'asst_789012': 'Booking Agent',
+      'asst_345678': 'Support Rep',
+      // Add more mappings as needed
+    };
+    
+    if (!assistantId) return 'AI Assistant';
+    return agentNameMap[assistantId] || 'AI Assistant';
+  };
+
+  // Generate consistent messages for a specific call ID
+  const generateMessagesForCall = (callId: string): Message[] => {
+    // Use the call ID to determine which conversation to show
+    const conversationSets = [
+      [
+        { role: 'customer', content: 'Hi, I need to cancel my reservation.', timestamp: new Date(Date.now() - 3600000).toISOString() },
+        { role: 'ai', content: 'No problem! Just so you know, you may cancel before 2 hours of the reservation with no charge. After that, canceling may trigger a fee of 20 dollars per guest. What\'s the name for the reservation?', timestamp: new Date(Date.now() - 3500000).toISOString() },
+        { role: 'customer', content: 'Aaron, aaron Last name is Judd, j u d d.', timestamp: new Date(Date.now() - 3400000).toISOString() },
+        { role: 'ai', content: "I'll cancel your reservation, so you're all set. Is there anything else I can help you with?", timestamp: new Date(Date.now() - 3300000).toISOString() },
+        { role: 'customer', content: "That's all.", timestamp: new Date(Date.now() - 3200000).toISOString() }
+      ],
+      [
+        { role: 'customer', content: 'I wanted to confirm my booking for tonight.', timestamp: new Date(Date.now() - 4600000).toISOString() },
+        { role: 'ai', content: 'I\'d be happy to help you confirm your booking. Could you please provide your name and the time of your reservation?', timestamp: new Date(Date.now() - 4500000).toISOString() },
+        { role: 'customer', content: 'My name is Sarah Johnson and the reservation is for 7:30 PM.', timestamp: new Date(Date.now() - 4400000).toISOString() },
+        { role: 'ai', content: "I've found your reservation for tonight at 7:30 PM for a party of 4. Would you like me to make any changes to it?", timestamp: new Date(Date.now() - 4300000).toISOString() },
+        { role: 'customer', content: "No, that's perfect. Thanks!", timestamp: new Date(Date.now() - 4200000).toISOString() }
+      ],
+      [
+        { role: 'customer', content: 'Do you have any availability for dinner tomorrow?', timestamp: new Date(Date.now() - 5600000).toISOString() },
+        { role: 'ai', content: 'Yes, we do have some availability tomorrow. How many people would be in your party and what time would you prefer?', timestamp: new Date(Date.now() - 5500000).toISOString() },
+        { role: 'customer', content: 'There will be 6 of us, and we'd prefer around 6 PM if possible.', timestamp: new Date(Date.now() - 5400000).toISOString() },
+        { role: 'ai', content: "I have an opening at 6:15 PM for a party of 6. Would that work for you?", timestamp: new Date(Date.now() - 5300000).toISOString() },
+        { role: 'customer', content: "That's perfect. Please book it under the name Mark Wilson.", timestamp: new Date(Date.now() - 5200000).toISOString() },
+        { role: 'ai', content: "Great! I've booked your reservation for tomorrow at 6:15 PM for 6 people under Mark Wilson. Anything else you need help with?", timestamp: new Date(Date.now() - 5100000).toISOString() },
+        { role: 'customer', content: "No thank you, that's all I needed.", timestamp: new Date(Date.now() - 5000000).toISOString() }
+      ]
     ];
-    return previewMessages[Math.floor(Math.random() * previewMessages.length)];
+    
+    // Use the call ID to determine which conversation to return
+    // For simplicity, we'll use the last digit of the ID to choose
+    const lastDigit = parseInt(callId.slice(-1), 36) % conversationSets.length;
+    return conversationSets[lastDigit];
   };
 
   const formatPhoneNumber = (number?: string): string => {
@@ -202,23 +216,32 @@ const Calls: React.FC = () => {
         <div className="mb-4">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid grid-cols-3 mb-4">
-              <TabsTrigger value="all" className="text-sm">
+              <TabsTrigger 
+                value="all" 
+                className={`text-sm ${activeTab === "all" ? "bg-[#9c90ff] text-white" : ""}`}
+              >
                 All
                 {calls.length > 0 && (
-                  <span className="ml-1 bg-gray-200 text-gray-700 rounded-full px-2 py-0.5 text-xs">
+                  <span className={`ml-1 ${activeTab === "all" ? "bg-white text-[#9c90ff]" : "bg-gray-200 text-gray-700"} rounded-full px-2 py-0.5 text-xs`}>
                     {calls.length}
                   </span>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="unresolved" className="text-sm">
+              <TabsTrigger 
+                value="unresolved" 
+                className={`text-sm ${activeTab === "unresolved" ? "bg-[#9c90ff] text-white" : ""}`}
+              >
                 Unresolved
                 {calls.filter(c => c.status.toLowerCase() === 'in-progress').length > 0 && (
-                  <span className="ml-1 bg-gray-200 text-gray-700 rounded-full px-2 py-0.5 text-xs">
+                  <span className={`ml-1 ${activeTab === "unresolved" ? "bg-white text-[#9c90ff]" : "bg-gray-200 text-gray-700"} rounded-full px-2 py-0.5 text-xs`}>
                     {calls.filter(c => c.status.toLowerCase() === 'in-progress').length}
                   </span>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="resolved" className="text-sm">
+              <TabsTrigger 
+                value="resolved" 
+                className={`text-sm ${activeTab === "resolved" ? "bg-[#9c90ff] text-white" : ""}`}
+              >
                 Resolved
               </TabsTrigger>
             </TabsList>
@@ -292,7 +315,7 @@ const Calls: React.FC = () => {
                   </h2>
                 </div>
                 <div className="text-sm text-gray-500 mt-1">
-                  Phone call with <span className="font-medium">AI</span>
+                  Phone call with <span className="font-medium">{selectedCall.agentName || 'AI Assistant'}</span>
                 </div>
               </div>
               <div>
@@ -318,7 +341,7 @@ const Calls: React.FC = () => {
                     <div className="text-xs mt-1 opacity-70 text-right">
                       {format(new Date(message.timestamp), 'h:mm a')}
                       {message.role === 'ai' && (
-                        <span className="ml-1 text-xs">Sent by AI</span>
+                        <span className="ml-1 text-xs">Sent by {selectedCall.agentName || 'AI'}</span>
                       )}
                     </div>
                   </div>

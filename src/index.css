@@ -40,6 +40,9 @@
     --dashboard-sidebar: 222 47% 11%;
     --dashboard-purple: 262 83% 58%;
     --dashboard-blue: 199 89% 48%;
+    
+    /* Call tab highlight color */
+    --call-tab-highlight: 246 100% 78%;
   }
 
   .dark {
@@ -76,6 +79,9 @@
     --dashboard-sidebar: 223 47% 11%;
     --dashboard-purple: 262 83% 58%;
     --dashboard-blue: 199 89% 48%;
+    
+    /* Call tab highlight color */
+    --call-tab-highlight: 246 100% 78%;
   }
 }
 
@@ -120,4 +126,15 @@
 
 .stat-trend-down {
   @apply text-red-500 flex items-center;
+}
+
+/* Call tab styles */
+.calls-tab-selected {
+  background-color: #9c90ff;
+  color: white;
+}
+
+.calls-tab-counter-selected {
+  background-color: white;
+  color: #9c90ff;
 }
