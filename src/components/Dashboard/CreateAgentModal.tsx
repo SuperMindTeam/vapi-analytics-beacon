@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import {
   Dialog,
@@ -15,9 +16,24 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
 import { createAgent, getVoices } from "@/services/vapiService";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 // Define the form validation schema using Zod
 const createAgentFormSchema = z.object({
@@ -36,16 +52,15 @@ const createAgentFormSchema = z.object({
 // Define a type for the form values based on the schema
 type CreateAgentFormValues = z.infer<typeof createAgentFormSchema>;
 
-// Add orgId prop to the component's props interface
 interface CreateAgentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  orgId: string;
 }
 
-const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, orgId }) => {
+const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [voices, setVoices] = useState([]);
+  const [voices, setVoices] = useState<Array<{id: string; name: string}>>([]);
+  const { currentOrganization } = useOrganization();
 
   useEffect(() => {
     const fetchVoices = async () => {
@@ -62,7 +77,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
   }, []);
 
   // Use react-hook-form with Zod for form validation
-  const { register, handleSubmit, formState: { errors }, setValue, control } = useForm<CreateAgentFormValues>({
+  const form = useForm<CreateAgentFormValues>({
     resolver: zodResolver(createAgentFormSchema),
     defaultValues: {
       name: "",
@@ -72,14 +87,14 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
     },
   });
 
-  const handleSubmitWrapper: SubmitHandler<CreateAgentFormValues> = async (values) => {
-    await handleSubmit(values);
-  };
-
   const onSubmit: SubmitHandler<CreateAgentFormValues> = async (values) => {
     try {
       setIsSubmitting(true);
       
+      if (!currentOrganization) {
+        throw new Error("No organization selected");
+      }
+
       // Add the organization ID to the request
       await createAgent({
         name: values.name,
@@ -98,7 +113,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
           voiceId: values.voice
         },
         firstMessage: values.firstMessage,
-        org_id: orgId // Use the provided orgId
+        org_id: currentOrganization.id // Use the organization ID from context
       });
       
       onClose();
@@ -120,73 +135,84 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
             Create a new agent to automate tasks and calls.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmitWrapper(onSubmit)} className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="name">Agent Name</Label>
-            <Input
-              id="name"
-              placeholder="Enter agent name"
-              type="text"
-              {...register("name")}
-            />
-            {errors.name && (
-              <p className="text-sm text-red-500">{errors.name.message}</p>
-            )}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="voice">Voice</Label>
-            <Select onValueChange={(value) => setValue("voice", value)} control={control}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a voice" />
-              </SelectTrigger>
-              <SelectContent>
-                {voices.map((voice) => (
-                  <SelectItem key={voice.id} value={voice.id}>
-                    {voice.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.voice && (
-              <p className="text-sm text-red-500">{errors.voice.message}</p>
-            )}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="prompt">Prompt</Label>
-            <Textarea
-              id="prompt"
-              placeholder="Enter prompt"
-              className="resize-none"
-              {...register("prompt")}
-            />
-            {errors.prompt && (
-              <p className="text-sm text-red-500">{errors.prompt.message}</p>
-            )}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="firstMessage">First Message (Optional)</Label>
-            <Input
-              id="firstMessage"
-              placeholder="Enter first message"
-              type="text"
-              {...register("firstMessage")}
-            />
-            {errors.firstMessage && (
-              <p className="text-sm text-red-500">{errors.firstMessage.message}</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  Creating <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                </>
-              ) : (
-                "Create Agent"
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Agent Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter agent name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-            </Button>
-          </DialogFooter>
-        </form>
+            />
+            <FormField
+              control={form.control}
+              name="voice"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Voice</FormLabel>
+                  <FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a voice" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {voices.map((voice) => (
+                          <SelectItem key={voice.id} value={voice.id}>
+                            {voice.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="prompt"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Prompt</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Enter prompt" className="resize-none" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="firstMessage"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>First Message (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter first message" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    Creating <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  </>
+                ) : (
+                  "Create Agent"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
