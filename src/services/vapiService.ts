@@ -2,8 +2,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-// VAPI API endpoint
-const VAPI_API_ENDPOINT = "https://api.vapi.ai/api/v1";
+// VAPI API endpoint - fixed to use the correct endpoint
+const VAPI_API_ENDPOINT = "https://api.vapi.ai";
 // Using the VAPI API key provided
 const VAPI_API_KEY = "86a2dd3f-cb06-4544-85c5-cde554064763"; 
 
@@ -75,9 +75,9 @@ export const createAgent = async ({ name, voiceId, prompt, provider, model }: Cr
     
     const orgId = orgMemberships.org_id;
     
-    // First, create the agent in VAPI
+    // First, create the agent in VAPI - updated to use correct endpoint and payload structure
     console.log("Creating agent in VAPI...");
-    const vapiResponse = await fetch(`${VAPI_API_ENDPOINT}/agents`, {
+    const vapiResponse = await fetch(`${VAPI_API_ENDPOINT}/assistant`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -85,9 +85,21 @@ export const createAgent = async ({ name, voiceId, prompt, provider, model }: Cr
       },
       body: JSON.stringify({
         name,
-        voice_id: voiceId,
-        prompt,
-        // Add other required VAPI parameters here
+        model: {
+          provider,
+          model,
+          messages: [
+            {
+              role: "system",
+              content: prompt
+            }
+          ]
+        },
+        voice: {
+          provider: "11labs",
+          voiceId
+        },
+        firstMessage: "Hello! How can I assist you today?"
       })
     });
 
@@ -132,9 +144,9 @@ export const createAgent = async ({ name, voiceId, prompt, provider, model }: Cr
 
 // Function to update an agent
 export const updateAgent = async (id: string, updates: Partial<CreateAgentParams>) => {
-  // Update the agent in VAPI
+  // Update the agent in VAPI - adjust this based on their update API format
   console.log("Updating agent in VAPI...");
-  const vapiResponse = await fetch(`${VAPI_API_ENDPOINT}/agents/${id}`, {
+  const vapiResponse = await fetch(`${VAPI_API_ENDPOINT}/assistant/${id}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
@@ -142,9 +154,22 @@ export const updateAgent = async (id: string, updates: Partial<CreateAgentParams
     },
     body: JSON.stringify({
       ...(updates.name && { name: updates.name }),
-      ...(updates.voiceId && { voice_id: updates.voiceId }),
-      ...(updates.prompt && { prompt: updates.prompt }),
-      // Add other VAPI update parameters here
+      ...(updates.prompt && { 
+        model: {
+          messages: [
+            {
+              role: "system",
+              content: updates.prompt
+            }
+          ]
+        }
+      }),
+      ...(updates.voiceId && { 
+        voice: {
+          provider: "11labs",
+          voiceId: updates.voiceId
+        }
+      })
     })
   });
 
@@ -181,7 +206,7 @@ export const updateAgent = async (id: string, updates: Partial<CreateAgentParams
 export const deleteAgent = async (id: string) => {
   // Delete from VAPI
   console.log("Deleting agent from VAPI...");
-  const vapiResponse = await fetch(`${VAPI_API_ENDPOINT}/agents/${id}`, {
+  const vapiResponse = await fetch(`${VAPI_API_ENDPOINT}/assistant/${id}`, {
     method: 'DELETE',
     headers: {
       'Authorization': `Bearer ${VAPI_API_KEY}`
