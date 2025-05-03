@@ -13,6 +13,7 @@ import AuthPage from "./pages/AuthPage";
 import { AuthProvider } from "./contexts/AuthContext";
 import { OrganizationProvider } from "./contexts/OrganizationContext";
 import ProtectedRoute from "./components/Auth/ProtectedRoute";
+import Settings from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
                 <Route path="/" element={<CallsOverview />} />
                 <Route path="/calls" element={<Calls />} />
                 <Route path="/agents" element={<AgentsList />} />
+                <Route path="/settings" element={<Settings />} />
               </Route>
             </Route>
             

@@ -1,240 +1,279 @@
 
 import React, { useState } from "react";
-import { 
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle 
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Trash, Edit, Loader2, Building } from "lucide-react";
-import { formatDate, capitalize } from "@/utils/formatters";
-import CreateAgentModal from "./CreateAgentModal";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { Button } from "../ui/button";
+import { Plus, Trash, RefreshCcw, PhoneCall, Phone, MoreVertical } from "lucide-react";
 import { getAgents, deleteAgent } from "@/services/vapiService";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
 import { toast } from "sonner";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import CreateAgentModal from "./CreateAgentModal";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+interface Agent {
+  id: string;
+  name: string;
+  phone_number?: string;
+  status: string;
+  created_at: string;
+}
 
 const AgentsList: React.FC = () => {
+  const { orgId } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const queryClient = useQueryClient();
-  
-  // Fetch agents data without organization ID
-  const { 
-    data: agents, 
-    isLoading, 
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [selectedAgentName, setSelectedAgentName] = useState<string>("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Fetch agents
+  const {
+    data: agents = [],
+    isLoading,
+    isError,
     error,
-    refetch
+    refetch,
   } = useQuery({
-    queryKey: ["agents"],
-    queryFn: () => getAgents(),
-    retry: 1,
-    staleTime: 30000, // 30 seconds
-    meta: {
-      onError: (err: Error) => {
-        console.error('Error fetching agents:', err);
-        const errorMessage = err instanceof Error 
-          ? err.message 
-          : 'Unknown error occurred';
-        toast.error(`Failed to fetch agents: ${errorMessage}`);
-      }
-    }
-  });
-  
-  // Delete agent mutation
-  const deleteAgentMutation = useMutation({
-    mutationFn: deleteAgent,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agents"] });
-      toast.success("Agent deleted successfully!");
-    },
-    onError: (error) => {
-      console.error('Error deleting agent:', error);
-      toast.error(`Failed to delete agent: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    queryKey: ['agents', orgId],
+    queryFn: getAgents,
+    enabled: !!orgId,
   });
 
-  // Handle agent deletion with confirmation
-  const handleDeleteAgent = (agentId: string, agentName: string) => {
-    if (confirm(`Are you sure you want to delete agent "${agentName}"?`)) {
-      deleteAgentMutation.mutate(agentId);
+  const handleDeleteClick = (agentId: string, agentName: string) => {
+    setSelectedAgentId(agentId);
+    setSelectedAgentName(agentName);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedAgentId) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteAgent(selectedAgentId);
+      toast.success(`Agent ${selectedAgentName} deleted successfully!`);
+      refetch();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete agent");
+      console.error("Delete agent error:", error);
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+      setSelectedAgentId(null);
+      setSelectedAgentName("");
     }
   };
 
-  // Render loading state
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Agents</CardTitle>
-        </CardHeader>
-        <CardContent className="flex justify-center py-10">
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Loading agents...</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-  
-  // Render error state with detailed error message and retry button
-  if (error) {
-    let errorMessage = 'Unknown error occurred';
-    let errorDetails = '';
-    
-    if (error instanceof Error) {
-      errorMessage = error.message;
-      
-      if (errorMessage.includes("policy")) {
-        errorDetails = "This may be related to database access permissions.";
-      } else if (errorMessage.includes("infinite recursion")) {
-        errorDetails = "There appears to be an issue with the database policies.";
-      }
-      
-      if ('cause' in error) {
-        console.error('Error cause:', error.cause);
-      }
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "active":
+        return "bg-green-500";
+      case "inactive":
+        return "bg-gray-400";
+      case "error":
+        return "bg-red-500";
+      default:
+        return "bg-yellow-500";
     }
-      
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Agents</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Alert variant="destructive">
-            <AlertDescription>
-              Failed to load data. {errorMessage}
-              {errorDetails && <p className="mt-1 text-sm">{errorDetails}</p>}
-            </AlertDescription>
-          </Alert>
-          <Button 
-            onClick={() => refetch()}
+  };
+
+  return (
+    <div className="container mx-auto py-6">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Agents</h1>
+          <p className="text-muted-foreground">
+            Manage your voice agents.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
             variant="outline"
+            size="icon"
+            onClick={() => refetch()}
+            title="Refresh"
+          >
+            <RefreshCcw size={16} />
+          </Button>
+          <Button onClick={() => setIsCreateModalOpen(true)}>
+            <Plus size={16} className="mr-2" />
+            Create Agent
+          </Button>
+        </div>
+      </div>
+
+      {isLoading && (
+        <div className="flex justify-center mt-12">
+          <div className="animate-spin rounded-full border-t-2 border-b-2 border-primary h-8 w-8"></div>
+        </div>
+      )}
+
+      {isError && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded mt-4">
+          <p className="text-red-700">
+            Error loading agents: {(error as Error)?.message || "Unknown error"}
+          </p>
+          <Button
+            variant="ghost"
+            className="mt-2 text-red-700"
+            onClick={() => refetch()}
+          >
+            Try Again
+          </Button>
+        </div>
+      )}
+
+      {!isLoading && !isError && agents.length === 0 && (
+        <div className="bg-background border rounded-lg py-12 text-center">
+          <h3 className="text-lg font-medium">No agents found</h3>
+          <p className="text-muted-foreground mt-1">
+            Create your first agent to get started
+          </p>
+          <Button
+            onClick={() => setIsCreateModalOpen(true)}
             className="mt-4"
           >
-            Retry
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-  
-  return (
-    <>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Agents</CardTitle>
-          <Button 
-            onClick={() => setIsCreateModalOpen(true)} 
-            size="sm"
-            className="bg-[hsl(var(--dashboard-purple))] hover:bg-[hsl(var(--dashboard-purple))/0.9]"
-          >
             <Plus size={16} className="mr-2" />
-            New Agent
+            Create Agent
           </Button>
-        </CardHeader>
-        <CardContent>
-          {agents && agents.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Voice</TableHead>
-                  <TableHead>Active Calls</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {agents.map((agent) => (
-                  <TableRow key={agent.id}>
-                    <TableCell className="font-medium">{agent.name}</TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant={agent.status === "active" ? "default" : "secondary"}
-                        className={
-                          agent.status === "active" 
-                            ? "bg-green-500 hover:bg-green-600" 
-                            : ""
-                        }
-                      >
-                        {capitalize(agent.status || 'unknown')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{capitalize(agent.voice_id || 'default')}</TableCell>
-                    <TableCell>
-                      {agent.active_calls > 0 ? (
-                        <Badge variant="outline" className="bg-blue-50">
-                          {agent.active_calls}
-                        </Badge>
-                      ) : (
-                        "0"
-                      )}
-                    </TableCell>
-                    <TableCell>{formatDate(agent.created_at)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end space-x-2">
-                        <Button variant="ghost" size="icon" title="Edit agent">
-                          <Edit size={16} />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          title="Delete agent"
-                          onClick={() => handleDeleteAgent(agent.id, agent.name)}
-                          disabled={deleteAgentMutation.isPending && agent.id === deleteAgentMutation.variables}
-                        >
-                          {deleteAgentMutation.isPending && agent.id === deleteAgentMutation.variables ? (
-                            <Loader2 size={16} className="animate-spin" />
-                          ) : (
-                            <Trash size={16} />
-                          )}
-                        </Button>
+        </div>
+      )}
+
+      {!isLoading && !isError && agents.length > 0 && (
+        <div className="overflow-hidden rounded-md border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="whitespace-nowrap p-3 text-left font-medium">Name</th>
+                <th className="whitespace-nowrap p-3 text-left font-medium">Phone Number</th>
+                <th className="whitespace-nowrap p-3 text-left font-medium">Status</th>
+                <th className="whitespace-nowrap p-3 text-left font-medium">Created</th>
+                <th className="whitespace-nowrap p-3 text-center font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {agents.map((agent: Agent) => (
+                <tr key={agent.id} className="border-t">
+                  <td className="p-3">{agent.name}</td>
+                  <td className="p-3">
+                    {agent.phone_number ? (
+                      <div className="flex items-center">
+                        <Phone size={14} className="mr-1" />
+                        {agent.phone_number}
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="py-8 text-center">
-              <p className="text-muted-foreground">No agents found. Create your first agent to get started.</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                If you believe this is an error, please check your API key or connection.
-              </p>
-              <Button 
-                onClick={() => refetch()}
-                variant="outline"
-                className="mt-4"
-              >
-                Retry Loading Agents
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      
-      <CreateAgentModal 
-        isOpen={isCreateModalOpen} 
-        onClose={() => {
-          setIsCreateModalOpen(false);
-          // Refresh agents list after creating a new agent
-          queryClient.invalidateQueries({ queryKey: ["agents"] });
-        }}
+                    ) : (
+                      <span className="text-muted-foreground">No phone number</span>
+                    )}
+                  </td>
+                  <td className="p-3">
+                    <div className="flex items-center">
+                      <span
+                        className={`inline-block w-2 h-2 rounded-full mr-2 ${getStatusColor(
+                          agent.status
+                        )}`}
+                      ></span>
+                      <span className="capitalize">{agent.status}</span>
+                    </div>
+                  </td>
+                  <td className="p-3">{formatDate(agent.created_at)}</td>
+                  <td className="p-3 text-center">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreVertical size={16} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() =>
+                            toast.info("Call feature coming soon!")
+                          }
+                        >
+                          <PhoneCall size={16} className="mr-2" />
+                          Call Agent
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            handleDeleteClick(agent.id, agent.name)
+                          }
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <Trash size={16} className="mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Create Agent Modal */}
+      <CreateAgentModal
+        open={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
       />
-    </>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Agent</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete the agent "{selectedAgentName}"?
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 };
 
