@@ -188,16 +188,28 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
   try {
     console.log("Creating agent with data:", agentData);
     
-    // Get user info
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error("No authenticated user found");
+    // Get user info with detailed error handling
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      console.error("Authentication error:", authError);
+      throw new Error("Authentication failed. Please log in again.");
     }
+    
+    if (!authData || !authData.user) {
+      console.error("No authenticated user found");
+      throw new Error("No authenticated user found. Please log in again.");
+    }
+    
+    const user = authData.user;
+    console.log("Current authenticated user:", user.id);
     
     // Use the provided org_id or find the user's organization
     let orgId = agentData.org_id;
     if (!orgId) {
       console.log("No org_id provided, looking for user's organization");
+      
+      // Debug query
+      console.log(`Checking org_members table for user_id: ${user.id}`);
       
       // First try: Get any organization membership for the user with is_default field
       const { data: orgMembers, error: memberError } = await supabase
@@ -205,13 +217,24 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
         .select('org_id, is_default')
         .eq('user_id', user.id);
       
+      console.log("Organization memberships query result:", { orgMembers, error: memberError });
+      
       if (memberError) {
         console.error("Error fetching org memberships:", memberError);
-        throw new Error("Failed to find organization memberships for your account");
+        throw new Error(`Failed to find organization memberships: ${memberError.message}`);
       }
       
       if (!orgMembers || orgMembers.length === 0) {
         console.error("No organization memberships found for user:", user.id);
+        
+        // Get all orgs to debug
+        const { data: allOrgs } = await supabase.from('orgs').select('*');
+        console.log("All organizations in database:", allOrgs);
+        
+        // Get all org members to debug
+        const { data: allOrgMembers } = await supabase.from('org_members').select('*');
+        console.log("All org members in database:", allOrgMembers);
+        
         throw new Error("No organizations found for your account. Please create an organization first.");
       }
       
