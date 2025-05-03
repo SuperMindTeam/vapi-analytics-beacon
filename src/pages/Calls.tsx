@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { getCalls } from '@/services/vapiService';
@@ -119,7 +118,7 @@ const Calls: React.FC = () => {
       [
         { role: 'customer', content: 'Do you have any availability for dinner tomorrow?', timestamp: new Date(Date.now() - 5600000).toISOString() },
         { role: 'ai', content: 'Yes, we do have some availability tomorrow. How many people would be in your party and what time would you prefer?', timestamp: new Date(Date.now() - 5500000).toISOString() },
-        { role: 'customer', content: 'There will be 6 of us, and we'd prefer around 6 PM if possible.', timestamp: new Date(Date.now() - 5400000).toISOString() },
+        { role: 'customer', content: "There will be 6 of us, and we'd prefer around 6 PM if possible.", timestamp: new Date(Date.now() - 5400000).toISOString() },
         { role: 'ai', content: "I have an opening at 6:15 PM for a party of 6. Would that work for you?", timestamp: new Date(Date.now() - 5300000).toISOString() },
         { role: 'customer', content: "That's perfect. Please book it under the name Mark Wilson.", timestamp: new Date(Date.now() - 5200000).toISOString() },
         { role: 'ai', content: "Great! I've booked your reservation for tomorrow at 6:15 PM for 6 people under Mark Wilson. Anything else you need help with?", timestamp: new Date(Date.now() - 5100000).toISOString() },
