@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { 
   Card,
@@ -38,8 +37,10 @@ const AgentsList: React.FC = () => {
     queryFn: getUserOrganizations,
     retry: 3,
     staleTime: 60000, // Cache for 1 minute
-    onError: (error: any) => {
-      console.error("Failed to fetch organizations:", error);
+    meta: {
+      onError: (error: any) => {
+        console.error("Failed to fetch organizations:", error);
+      }
     }
   });
   

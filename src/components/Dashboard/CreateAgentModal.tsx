@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -57,8 +57,21 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
   const [firstMessage, setFirstMessage] = useState("");
   const [orgId, setOrgId] = useState<string | undefined>(undefined);
   const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
-  const [isCreating, setIsCreating] = useState(false);
   const [useDefaultVoices, setUseDefaultVoices] = useState(false);
+
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setName("");
+      setVoiceId(undefined);
+      setPrompt("");
+      setFirstMessage("");
+      setValidationErrors({});
+    } else if (organizations && organizations.length > 0) {
+      // Set default organization when modal opens
+      setOrgId(organizations[0].id);
+    }
+  }, [isOpen, organizations]);
 
   const { data: voices, isLoading: isLoadingVoices, error: voicesError } = useQuery({
     queryKey: ['voices'],
@@ -67,35 +80,28 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
   });
 
   // Handle errors and empty data with effect hooks to properly set useDefaultVoices
-  React.useEffect(() => {
+  useEffect(() => {
     if (voicesError) {
       console.error("Error fetching voices, using predefined list");
       setUseDefaultVoices(true);
-    }
-  }, [voicesError]);
-
-  React.useEffect(() => {
-    if (voices && voices.length === 0) {
+    } else if (voices && voices.length === 0) {
       console.error("Empty voice response, using predefined list");
       setUseDefaultVoices(true);
+    } else {
+      setUseDefaultVoices(false);
     }
-  }, [voices]);
+  }, [voicesError, voices]);
 
   const createAgentMutation = useMutation({
     mutationFn: createAgent,
     onSuccess: () => {
       toast.success("Agent created successfully!");
       onClose();
-      setName("");
-      setVoiceId(undefined);
-      setPrompt("");
-      setFirstMessage("");
-      setOrgId(undefined);
-      setIsCreating(false);
+      // Form is reset when modal closes due to the useEffect above
     },
     onError: (error: any) => {
+      console.error("Failed to create agent:", error);
       toast.error(error.message || "Failed to create agent");
-      setIsCreating(false);
     },
   });
 
@@ -108,7 +114,6 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
     if (!prompt.trim()) errors.prompt = true;
     if (!firstMessage.trim()) errors.firstMessage = true;
     
-    // We don't validate orgId as it should be handled automatically
     setValidationErrors(errors);
     
     // Form is valid if there are no errors
@@ -119,6 +124,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate the form
     const isValid = validateForm();
     
     if (!isValid) {
@@ -140,32 +146,42 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
     // For organization, we'll use the available one or let the backend handle it
     const finalOrgId = orgId || (organizations && organizations.length > 0 ? organizations[0].id : undefined);
     
-    setIsCreating(true);
-    
     // Create agent with updated structure for VAPI API
-    createAgentMutation.mutate({
-      name,
-      model: {
-        provider: "openai",
-        model: "gpt-4-turbo",
-        messages: [
-          {
-            role: "system",
-            content: prompt
-          }
-        ]
-      },
-      voice: {
-        provider: "11labs",
-        voiceId: voiceId
-      },
-      firstMessage,
-      org_id: finalOrgId
-    });
+    try {
+      createAgentMutation.mutate({
+        name,
+        model: {
+          provider: "openai",
+          model: "gpt-4-turbo",
+          messages: [
+            {
+              role: "system",
+              content: prompt
+            }
+          ]
+        },
+        voice: {
+          provider: "11labs",
+          voiceId: voiceId || ""
+        },
+        firstMessage,
+        org_id: finalOrgId
+      });
+    } catch (error) {
+      console.error("Error in create agent submission:", error);
+    }
   };
 
   const handleVoiceSelect = (value: string) => {
     setVoiceId(value);
+    // Clear validation error for voiceId when selected
+    if (validationErrors.voiceId) {
+      setValidationErrors(prev => {
+        const updated = { ...prev };
+        delete updated.voiceId;
+        return updated;
+      });
+    }
   };
 
   // Determine which voice list to use
@@ -191,15 +207,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open) {
-        setName("");
-        setVoiceId(undefined);
-        setPrompt("");
-        setFirstMessage("");
-        setOrgId(undefined);
-        setValidationErrors({});
-        onClose();
-      }
+      if (!open) onClose();
     }}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -225,8 +233,18 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
               id="name"
               placeholder="Enter agent name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
+              onChange={(e) => {
+                setName(e.target.value);
+                // Clear validation error when typing
+                if (validationErrors.name) {
+                  setValidationErrors(prev => {
+                    const updated = { ...prev };
+                    delete updated.name;
+                    return updated;
+                  });
+                }
+              }}
+              className={validationErrors.name ? "border-red-500" : ""}
               disabled={createAgentMutation.isPending}
             />
             {validationErrors.name && (
@@ -251,8 +269,12 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
 
           <div className="grid gap-2">
             <Label htmlFor="voice">Voice</Label>
-            <Select onValueChange={handleVoiceSelect} value={voiceId} disabled={createAgentMutation.isPending}>
-              <SelectTrigger className="flex items-center gap-2">
+            <Select 
+              onValueChange={handleVoiceSelect} 
+              value={voiceId} 
+              disabled={createAgentMutation.isPending}
+            >
+              <SelectTrigger className={`flex items-center gap-2 ${validationErrors.voiceId ? "border-red-500" : ""}`}>
                 <SelectValue placeholder="Select a voice" />
               </SelectTrigger>
               <SelectContent>
@@ -276,8 +298,17 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
               id="prompt"
               placeholder="Enter agent prompt"
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              required
+              onChange={(e) => {
+                setPrompt(e.target.value);
+                if (validationErrors.prompt) {
+                  setValidationErrors(prev => {
+                    const updated = { ...prev };
+                    delete updated.prompt;
+                    return updated;
+                  });
+                }
+              }}
+              className={validationErrors.prompt ? "border-red-500" : ""}
               disabled={createAgentMutation.isPending}
             />
             {validationErrors.prompt && (
@@ -291,8 +322,17 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
               id="firstMessage"
               placeholder="Enter first message"
               value={firstMessage}
-              onChange={(e) => setFirstMessage(e.target.value)}
-              required
+              onChange={(e) => {
+                setFirstMessage(e.target.value);
+                if (validationErrors.firstMessage) {
+                  setValidationErrors(prev => {
+                    const updated = { ...prev };
+                    delete updated.firstMessage;
+                    return updated;
+                  });
+                }
+              }}
+              className={validationErrors.firstMessage ? "border-red-500" : ""}
               disabled={createAgentMutation.isPending}
             />
             {validationErrors.firstMessage && (
@@ -300,9 +340,16 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
             )}
           </div>
 
-          <Button type="submit" className="w-full" disabled={createAgentMutation.isPending}>
+          <Button 
+            type="submit" 
+            className="w-full" 
+            disabled={createAgentMutation.isPending}
+          >
             {createAgentMutation.isPending ? (
-              <>Creating...</>
+              <div className="flex items-center">
+                <div className="animate-spin mr-2 h-4 w-4 border-b-2 border-white rounded-full"></div>
+                <span>Creating...</span>
+              </div>
             ) : (
               "Create Agent"
             )}
