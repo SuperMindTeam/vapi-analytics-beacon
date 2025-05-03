@@ -28,7 +28,7 @@ const AgentsList: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const queryClient = useQueryClient();
   
-  // Fetch agents data with proper error handling
+  // Fetch agents data with better error handling
   const { 
     data: agents, 
     isLoading, 
@@ -37,8 +37,16 @@ const AgentsList: React.FC = () => {
   } = useQuery({
     queryKey: ["agents"],
     queryFn: getAgents,
-    retry: 2,
+    retry: 1,
     staleTime: 30000, // 30 seconds
+    onError: (err) => {
+      console.error('Error fetching agents:', err);
+      // Log the full error to help with debugging
+      const errorMessage = err instanceof Error 
+        ? err.message 
+        : 'Unknown error occurred';
+      toast.error(`Failed to fetch agents: ${errorMessage}`);
+    }
   });
   
   // Delete agent mutation
@@ -49,6 +57,7 @@ const AgentsList: React.FC = () => {
       toast.success("Agent deleted successfully!");
     },
     onError: (error) => {
+      console.error('Error deleting agent:', error);
       toast.error(`Failed to delete agent: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   });
@@ -79,9 +88,22 @@ const AgentsList: React.FC = () => {
   
   // Render error state with detailed error message and retry button
   if (error) {
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : 'Unknown error occurred';
+    // Extract a more detailed error message
+    let errorMessage = 'Unknown error occurred';
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      
+      // Check for common Supabase policy errors
+      if (errorMessage.includes("policy")) {
+        errorMessage += ". This may be related to database access permissions.";
+      }
+      
+      // Log additional details if available
+      if ('cause' in error) {
+        console.error('Error cause:', error.cause);
+      }
+    }
       
     return (
       <Card>
