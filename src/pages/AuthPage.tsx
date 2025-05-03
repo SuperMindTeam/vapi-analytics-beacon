@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2 } from "lucide-react";
+import { toast } from "@/components/ui/sonner";
 
 // Login form schema
 const loginSchema = z.object({
@@ -32,7 +33,7 @@ const registerSchema = z.object({
 });
 
 const AuthPage: React.FC = () => {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   
@@ -61,9 +62,12 @@ const AuthPage: React.FC = () => {
     setIsLoading(true);
     try {
       await signIn(values.email, values.password);
+      // Toast notification for better UX feedback
+      toast.success("Signing in...");
       // Navigation to dashboard is handled in the AuthContext
     } catch (error) {
       console.error("Login error:", error);
+      toast.error("Failed to sign in. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -76,11 +80,20 @@ const AuthPage: React.FC = () => {
       await signUp(values.email, values.password, values.fullName);
       // Redirect to login tab after registration
       document.getElementById("login-tab")?.click();
+      toast.success("Account created! Please sign in.");
     } catch (error) {
       console.error("Registration error:", error);
+      toast.error("Failed to create account. Please try again.");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Quick admin login function
+  const handleQuickAdminLogin = () => {
+    loginForm.setValue("email", "admin@example.com");
+    loginForm.setValue("password", "admin");
+    onLoginSubmit({ email: "admin@example.com", password: "admin" });
   };
 
   return (
@@ -121,6 +134,7 @@ const AuthPage: React.FC = () => {
                               placeholder="your.email@example.com" 
                               {...field} 
                               disabled={isLoading}
+                              autoComplete="email"
                             />
                           </FormControl>
                           <FormMessage />
@@ -139,6 +153,7 @@ const AuthPage: React.FC = () => {
                               type="password" 
                               {...field} 
                               disabled={isLoading}
+                              autoComplete="current-password"
                             />
                           </FormControl>
                           <FormMessage />
@@ -167,11 +182,7 @@ const AuthPage: React.FC = () => {
                       variant="outline"
                       className="w-full mt-2"
                       disabled={isLoading}
-                      onClick={() => {
-                        loginForm.setValue("email", "admin@example.com");
-                        loginForm.setValue("password", "admin");
-                        loginForm.handleSubmit(onLoginSubmit)();
-                      }}
+                      onClick={handleQuickAdminLogin}
                     >
                       Sign in as Admin
                     </Button>
@@ -204,6 +215,7 @@ const AuthPage: React.FC = () => {
                               placeholder="John Doe" 
                               {...field} 
                               disabled={isLoading}
+                              autoComplete="name"
                             />
                           </FormControl>
                           <FormMessage />
@@ -223,6 +235,7 @@ const AuthPage: React.FC = () => {
                               placeholder="your.email@example.com" 
                               {...field} 
                               disabled={isLoading}
+                              autoComplete="email"
                             />
                           </FormControl>
                           <FormMessage />
@@ -241,6 +254,7 @@ const AuthPage: React.FC = () => {
                               type="password" 
                               {...field} 
                               disabled={isLoading}
+                              autoComplete="new-password"
                             />
                           </FormControl>
                           <FormMessage />
@@ -259,6 +273,7 @@ const AuthPage: React.FC = () => {
                               type="password" 
                               {...field} 
                               disabled={isLoading}
+                              autoComplete="new-password"
                             />
                           </FormControl>
                           <FormMessage />

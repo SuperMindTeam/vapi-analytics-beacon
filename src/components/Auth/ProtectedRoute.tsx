@@ -2,16 +2,17 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate, Outlet } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 const ProtectedRoute = () => {
   const { user, loading } = useAuth();
   const [showLoading, setShowLoading] = useState(true);
   
-  // Add a timeout so we don't show the loading screen forever
+  // Reduce the timeout to make the loading state shorter
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowLoading(false);
-    }, 10000); // 10 second maximum loading time
+    }, 5000); // 5 second maximum loading time (reduced from 10 seconds)
     
     return () => clearTimeout(timer);
   }, []);
@@ -20,7 +21,7 @@ const ProtectedRoute = () => {
   if (loading && showLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[hsl(var(--dashboard-purple))] mb-4"></div>
+        <Loader2 className="h-12 w-12 animate-spin text-[hsl(var(--dashboard-purple))] mb-4" />
         <p className="text-muted-foreground">Loading your account...</p>
       </div>
     );

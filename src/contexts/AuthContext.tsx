@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,7 +27,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [orgFetchAttempted, setOrgFetchAttempted] = useState(false);
   const navigate = useNavigate();
 
-  // Function to fetch and set the user's organization ID
+  // Function to fetch and set the user's organization ID - optimized version
   const fetchUserOrg = async (userId: string) => {
     if (!userId) return;
     
@@ -34,50 +35,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log("Fetching organization for user:", userId);
       setOrgFetchAttempted(true);
       
-      // Use a more direct query approach
-      const { data, error } = await supabase
-        .from('org_members')
-        .select('org_id')
-        .eq('user_id', userId)
-        .eq('is_default', true)
-        .single();
+      // Use a more direct query approach with a short timeout
+      const orgPromise = new Promise<void>(async (resolve) => {
+        try {
+          // First try to get default org
+          const { data, error } = await supabase
+            .from('org_members')
+            .select('org_id')
+            .eq('user_id', userId)
+            .eq('is_default', true)
+            .limit(1)
+            .maybeSingle();
 
-      if (error) {
-        console.error("Error fetching user's organization:", error);
-        toast.error(`Error retrieving organization: ${error.message}`);
-        
-        // Try a fallback query without the is_default filter
-        const fallbackQuery = await supabase
-          .from('org_members')
-          .select('org_id')
-          .eq('user_id', userId)
-          .limit(1)
-          .single();
-          
-        if (!fallbackQuery.error && fallbackQuery.data) {
-          console.log("Found organization via fallback query:", fallbackQuery.data.org_id);
-          setOrgId(fallbackQuery.data.org_id);
-          return;
+          if (error) {
+            console.warn("Error fetching default organization:", error.message);
+            
+            // If no default, try any org membership as fallback
+            const fallbackQuery = await supabase
+              .from('org_members')
+              .select('org_id')
+              .eq('user_id', userId)
+              .limit(1)
+              .maybeSingle();
+              
+            if (!fallbackQuery.error && fallbackQuery.data) {
+              console.log("Found organization via fallback query:", fallbackQuery.data.org_id);
+              setOrgId(fallbackQuery.data.org_id);
+            } else {
+              console.warn("No organization found for user");
+              // Don't show toast here, will show on Settings page when needed
+            }
+          } else if (data) {
+            console.log("User's organization fetched successfully:", data.org_id);
+            setOrgId(data.org_id);
+          }
+        } catch (err) {
+          console.error("Error in org fetch:", err);
         }
-        
-        // Even with an error, we don't want to keep the app in loading state
-        setLoading(false);
-        return;
-      }
-
-      if (data) {
-        console.log("User's organization fetched successfully:", data.org_id);
-        setOrgId(data.org_id);
-      } else {
-        console.log("No default organization found for user");
-        toast.warning("No default organization found for your account");
-        setOrgId(null);
-      }
+        resolve();
+      });
+      
+      // Set a timeout for the org fetch to ensure it doesn't block auth flow
+      const timeoutPromise = new Promise<void>((resolve) => {
+        setTimeout(() => {
+          console.log("Organization fetch timeout reached");
+          resolve();
+        }, 2000); // 2 second timeout
+      });
+      
+      // Race between fetch and timeout - this ensures we'll continue with auth flow
+      await Promise.race([orgPromise, timeoutPromise]);
+      
     } catch (error) {
       console.error("Error in fetchUserOrg:", error);
-      toast.error(`Unexpected error retrieving organization: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      // Always make sure to finish loading regardless of outcome
+      // Always finish loading regardless of outcome
       setLoading(false);
     }
   };
@@ -88,8 +100,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const initializeAuth = async () => {
       try {
-        // First get the current session
-        const { data: sessionData } = await supabase.auth.getSession();
+        // First get the current session - with fast timeout
+        const sessionPromise = supabase.auth.getSession();
+        
+        // Set a timeout to ensure we don't wait too long for the session
+        const timeoutPromise = new Promise<{data: {session: Session | null}}>((resolve) => {
+          setTimeout(() => {
+            console.log("Session fetch timeout reached");
+            resolve({data: {session: null}});
+          }, 3000); // 3 second timeout
+        });
+        
+        // Race between fetch and timeout
+        const { data: sessionData } = await Promise.race([sessionPromise, timeoutPromise]);
         const currentSession = sessionData.session;
         
         if (mounted) {
@@ -102,13 +125,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Fetch organization after user is set
             await fetchUserOrg(currentSession.user.id);
           } else {
-            setLoading(false); // No user, so we're done loading
+            setLoading(false); // No user, finish loading
           }
         }
       } catch (error) {
         console.error("Error initializing auth:", error);
         if (mounted) {
-          setLoading(false); // Error occurred, so we're done loading
+          setLoading(false);
         }
       }
     };
@@ -129,19 +152,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(currentSession.user);
             setUserId(currentSession.user.id);
             
-            // Fetch org when auth state changes and we have a user
-            await fetchUserOrg(currentSession.user.id);
+            // Set a timeout to ensure navigation happens quickly
+            if (event === 'SIGNED_IN') {
+              setTimeout(() => {
+                navigate('/');
+              }, 300);
+            }
+            
+            // Fetch org but don't wait for it
+            setTimeout(() => {
+              fetchUserOrg(currentSession.user.id);
+            }, 100);
           } else {
             setUser(null);
             setUserId(null);
             setOrgId(null);
-            setLoading(false); // No user, so we're done loading
-          }
-          
-          if (event === 'SIGNED_OUT') {
-            navigate('/auth');
-          } else if (event === 'SIGNED_IN') {
-            navigate('/');
+            setLoading(false);
+            
+            if (event === 'SIGNED_OUT') {
+              navigate('/auth');
+            }
           }
         }
       }
@@ -153,21 +183,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [navigate]);
 
-  // Add a safety mechanism to prevent infinite loading
+  // Safety timeout to prevent infinite loading
   useEffect(() => {
     const safetyTimeout = setTimeout(() => {
-      if (loading && user && !orgFetchAttempted) {
+      if (loading) {
         console.log("Safety timeout reached: forcing loading state to complete");
         setLoading(false);
       }
-    }, 5000); // 5 second safety timeout
+    }, 3000); // 3 second safety timeout (reduced from 5 seconds)
 
     return () => clearTimeout(safetyTimeout);
-  }, [loading, user, orgFetchAttempted]);
+  }, [loading]);
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -175,12 +205,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) {
         throw error;
       }
+      
+      if (data.user) {
+        // Set user data immediately for faster perceived performance
+        setUser(data.user);
+        setUserId(data.user.id);
+        setSession(data.session);
+      }
 
-      toast.success("Successfully signed in!");
       // Navigation is handled in the auth state change listener
     } catch (error: any) {
       toast.error(error.message || "Failed to sign in");
       console.error("Sign in error:", error);
+      throw error;
     }
   };
 
@@ -204,6 +241,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       toast.error(error.message || "Failed to sign up");
       console.error("Sign up error:", error);
+      throw error;
     }
   };
 
