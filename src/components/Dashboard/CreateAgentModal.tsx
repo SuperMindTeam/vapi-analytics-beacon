@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import {
   Dialog,
@@ -63,8 +64,13 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
     queryKey: ['voices'],
     queryFn: getVoices,
     retry: 3,
-    onError: (error) => {
-      console.error("Error fetching voices:", error);
+    onSuccess: (data) => {
+      if (!data || data.length === 0) {
+        setUseDefaultVoices(true);
+      }
+    },
+    onError: () => {
+      console.error("Error fetching voices, using predefined list");
       setUseDefaultVoices(true);
     }
   });

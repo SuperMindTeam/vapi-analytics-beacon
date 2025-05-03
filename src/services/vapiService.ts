@@ -56,7 +56,6 @@ interface AgentCreateParams {
 // Updated interface to make data optional but properly typed
 interface VapiResponse<T> {
   data?: T;
-  total?: number;
 }
 
 // API request helper with error handling
@@ -195,24 +194,37 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
       throw new Error("No authenticated user found");
     }
     
-    // Use the provided org_id or find the user's default organization
+    // Use the provided org_id or find the user's organization
     let orgId = agentData.org_id;
     if (!orgId) {
-      console.log("No org_id provided, looking for default organization");
+      console.log("No org_id provided, looking for user's organization");
       
-      // Get the user's default organization - simplified query
-      const { data: orgMember, error: orgError } = await supabase
-        .from('org_members')
-        .select('org_id')
-        .eq('user_id', user.id)
-        .limit(1)
+      // Get the user's organization - we look for the organization with the same ID as the user
+      // This is because when users sign up, their org ID is set to their user ID
+      const { data: org, error: orgError } = await supabase
+        .from('orgs')
+        .select('id')
+        .eq('id', user.id)
         .single();
       
-      if (orgError || !orgMember) {
-        throw new Error("Failed to find an organization for the user. Please select an organization or create one first.");
+      if (orgError || !org) {
+        // Fallback to find any organization the user belongs to
+        const { data: orgMember, error: memberError } = await supabase
+          .from('org_members')
+          .select('org_id')
+          .eq('user_id', user.id)
+          .limit(1)
+          .single();
+          
+        if (memberError || !orgMember) {
+          throw new Error("Failed to find an organization for the user. Please check your organization settings.");
+        }
+        
+        orgId = orgMember.org_id;
+      } else {
+        orgId = org.id;
       }
       
-      orgId = orgMember.org_id;
       console.log("Found organization with ID:", orgId);
     }
     
@@ -256,11 +268,11 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
     console.log("Got VAPI agent ID:", vapiAgentId);
     console.log("Saving agent to Supabase database with org_id:", orgId);
     
-    // Save agent to database
+    // Save agent to database using the ID provided by VAPI API
     const { data: agent, error } = await supabase
       .from('agents')
       .insert({
-        id: vapiAgentId, // Use the VAPI agent ID as our ID
+        id: vapiAgentId, // Use the VAPI agent ID
         org_id: orgId,
         name: agentData.name,
         voice_id: agentData.voice.voiceId,
