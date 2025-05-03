@@ -59,8 +59,8 @@ const Calls: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>("all");
   const [newMessage, setNewMessage] = useState<string>("");
   
-  // New state for filtering
-  const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("");
+  // Updated to use "all" as the default value instead of empty string
+  const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [showFilters, setShowFilters] = useState<boolean>(false);
   const [uniqueAgents, setUniqueAgents] = useState<{id: string, name: string}[]>([]);
@@ -342,7 +342,7 @@ const Calls: React.FC = () => {
   
   // Function to clear all filters
   const clearFilters = () => {
-    setSelectedAgentFilter("");
+    setSelectedAgentFilter("all");
     setSelectedDate(undefined);
   };
 
@@ -366,7 +366,7 @@ const Calls: React.FC = () => {
     }
     
     // Then filter by agent if selected
-    if (selectedAgentFilter) {
+    if (selectedAgentFilter && selectedAgentFilter !== "all") {
       filtered = filtered.filter(call => call.assistantId === selectedAgentFilter);
     }
     
@@ -444,7 +444,8 @@ const Calls: React.FC = () => {
                     <SelectValue placeholder="Any Agent" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Any Agent</SelectItem>
+                    {/* Fix: Providing a non-empty string value for the "Any Agent" option */}
+                    <SelectItem value="all">Any Agent</SelectItem>
                     {uniqueAgents.map(agent => (
                       <SelectItem key={agent.id} value={agent.id}>
                         {agent.name}
@@ -486,7 +487,7 @@ const Calls: React.FC = () => {
             </div>
           )}
         </div>
-        
+
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-center text-red-700 text-sm">
             <AlertTriangle className="h-4 w-4 mr-2 flex-shrink-0" />
