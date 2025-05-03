@@ -184,6 +184,10 @@ export type Database = {
         Args: { membership_id_param: string }
         Returns: boolean
       }
+      is_user_in_org: {
+        Args: { org_uuid: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "owner" | "admin" | "member"

@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Info, AlertTriangle, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Info, AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 
 interface OrgMembership {
   org_id: string;
@@ -16,10 +17,11 @@ interface OrgMembership {
 }
 
 const Settings = () => {
-  const { userId, orgId, user } = useAuth();
+  const { userId, orgId, user, refreshOrgId } = useAuth();
   const [orgMemberships, setOrgMemberships] = useState<OrgMembership[]>([]);
   const [loading, setLoading] = useState(false);
   const [directOrgId, setDirectOrgId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   
   // Force refresh org data directly from database
   useEffect(() => {
@@ -37,9 +39,25 @@ const Settings = () => {
             
           if (error) {
             console.error("Error directly fetching org ID:", error);
-          } else if (data) {
+            toast.error(`Error fetching organization: ${error.message}`);
+          } else if (data?.org_id) {
             console.log("Found direct org ID:", data.org_id);
             setDirectOrgId(data.org_id);
+          } else {
+            console.warn("No default org found in direct query");
+            
+            // Try without the is_default filter as fallback
+            const { data: anyOrgData, error: anyOrgError } = await supabase
+              .from('org_members')
+              .select('org_id')
+              .eq('user_id', userId)
+              .limit(1)
+              .maybeSingle();
+              
+            if (!anyOrgError && anyOrgData?.org_id) {
+              console.log("Found any org ID as fallback:", anyOrgData.org_id);
+              setDirectOrgId(anyOrgData.org_id);
+            }
           }
         } catch (err) {
           console.error("Error in direct org fetch:", err);
@@ -86,11 +104,38 @@ const Settings = () => {
   // Find default org from memberships
   const defaultOrg = orgMemberships.find(membership => membership.is_default);
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refreshOrgId();
+      toast.success("Organization data refreshed");
+    } catch (error) {
+      toast.error("Failed to refresh organization data");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <div className="container mx-auto py-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">Manage your account settings</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Settings</h1>
+          <p className="text-muted-foreground">Manage your account settings</p>
+        </div>
+        <Button 
+          onClick={handleRefresh} 
+          variant="outline" 
+          size="sm"
+          disabled={refreshing}
+        >
+          {refreshing ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4 mr-2" />
+          )}
+          Refresh Data
+        </Button>
       </div>
 
       {loading && (
@@ -115,7 +160,8 @@ const Settings = () => {
           <Info className="h-4 w-4" />
           <AlertTitle>Organization ID Found in Database</AlertTitle>
           <AlertDescription>
-            A default organization was found in the database ({directOrgId || defaultOrg?.org_id}), but it's not loaded in the current session. Try refreshing the page or signing out and back in.
+            A default organization was found in the database ({directOrgId || defaultOrg?.org_id}), but it's not loaded in the current session. 
+            Use the 'Refresh Data' button above to reload your organization data.
           </AlertDescription>
         </Alert>
       )}
@@ -124,7 +170,7 @@ const Settings = () => {
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>Organization Memberships</CardTitle>
-            <CardDescription>Your organization memberships</CardDescription>
+            <CardDescription>Your organization memberships from database</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -133,7 +179,7 @@ const Settings = () => {
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label className="text-xs">Organization ID</Label>
-                      <div className="font-mono text-sm">{membership.org_id}</div>
+                      <div className="font-mono text-sm truncate">{membership.org_id}</div>
                     </div>
                     <div>
                       <Label className="text-xs">Default</Label>
@@ -173,12 +219,14 @@ const Settings = () => {
             
             <div className="space-y-2">
               <Label htmlFor="orgId">Organization ID (Session)</Label>
-              <Input 
-                id="orgId" 
-                value={orgId || 'Not available'} 
-                readOnly 
-                className="font-mono bg-muted"
-              />
+              <div className="flex gap-2">
+                <Input 
+                  id="orgId" 
+                  value={orgId || 'Not available'} 
+                  readOnly 
+                  className={`font-mono bg-muted flex-1 ${!orgId ? "text-red-500" : ""}`}
+                />
+              </div>
               <p className="text-xs text-muted-foreground">Your organization's unique identifier from current session</p>
             </div>
             
@@ -204,6 +252,21 @@ const Settings = () => {
                 className="font-mono bg-muted"
               />
               <p className="text-xs text-muted-foreground">Your email address</p>
+            </div>
+
+            <div className="space-y-2 pt-4">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold">Debug Information</h3>
+                <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">Developer Only</span>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-md border text-sm font-mono">
+                <p>User ID: {userId || 'null'}</p>
+                <p>Org ID (Session): {orgId || 'null'}</p>
+                <p>Org ID (Direct DB): {directOrgId || 'null'}</p>
+                <p>Default Org: {defaultOrg?.org_id || 'null'}</p>
+                <p>Total Memberships: {orgMemberships.length}</p>
+                <p>Email: {user?.email || 'null'}</p>
+              </div>
             </div>
           </CardContent>
         </Card>

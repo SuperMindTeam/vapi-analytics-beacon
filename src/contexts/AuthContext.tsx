@@ -13,6 +13,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshOrgId: () => Promise<void>; // New function to manually refresh org ID
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,14 +35,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log("Fetching organization for user:", userId);
       setOrgFetchAttempted(true);
       
-      // Direct query to get default org membership
+      // Direct query to get default org membership - now using maybeSingle for better error handling
       const { data, error } = await supabase
         .from('org_members')
         .select('org_id')
         .eq('user_id', userId)
         .eq('is_default', true)
-        .limit(1)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.warn("Error fetching default organization:", error.message);
@@ -52,7 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .select('org_id')
           .eq('user_id', userId)
           .limit(1)
-          .single();
+          .maybeSingle();
           
         if (fallbackError) {
           console.error("Error fetching any organization:", fallbackError.message);
@@ -60,18 +60,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             description: "Some features may not work correctly",
             duration: 5000,
           });
-        } else if (fallbackData) {
+        } else if (fallbackData?.org_id) {
           console.log("Found organization via fallback:", fallbackData.org_id);
           setOrgId(fallbackData.org_id);
+        } else {
+          console.warn("No organization found for user via fallback");
+          setOrgId(null);
         }
-      } else if (data) {
+      } else if (data?.org_id) {
         console.log("User's organization fetched successfully:", data.org_id);
         setOrgId(data.org_id);
+      } else {
+        console.warn("No default organization found for user");
+        setOrgId(null);
       }
     } catch (err) {
       console.error("Error in org fetch:", err);
+      setOrgId(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Add a function to manually refresh the org ID
+  const refreshOrgId = async () => {
+    if (userId) {
+      await fetchUserOrg(userId);
     }
   };
 
@@ -164,7 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log("Safety timeout reached: forcing loading state to complete");
         setLoading(false);
       }
-    }, 3000); // 3 second safety timeout
+    }, 2000); // Reduced from 3 seconds to 2 seconds for faster experience
 
     return () => clearTimeout(safetyTimeout);
   }, [loading]);
@@ -242,7 +256,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     orgId,
     signIn, 
     signUp, 
-    signOut 
+    signOut,
+    refreshOrgId // Add the new function to the context
   };
 
   return (
