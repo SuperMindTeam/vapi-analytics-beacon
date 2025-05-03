@@ -1,13 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { getCalls } from '@/services/vapiService';
-import { format } from 'date-fns';
-import { Phone, Clock, User, MessageSquare, Check, AlertTriangle, X } from 'lucide-react';
+import { format, isAfter, isBefore, isSameDay } from 'date-fns';
+import { Phone, Clock, User, MessageSquare, Check, AlertTriangle, X, Filter, CalendarRange, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { Calendar } from '@/components/ui/calendar';
+import { 
+  Popover, 
+  PopoverContent, 
+  PopoverTrigger 
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 
 interface Message {
   role: string;
@@ -44,7 +58,13 @@ const Calls: React.FC = () => {
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [newMessage, setNewMessage] = useState<string>("");
-
+  
+  // New state for filtering
+  const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [showFilters, setShowFilters] = useState<boolean>(false);
+  const [uniqueAgents, setUniqueAgents] = useState<{id: string, name: string}[]>([]);
+  
   useEffect(() => {
     const fetchCalls = async () => {
       try {
@@ -89,6 +109,15 @@ const Calls: React.FC = () => {
           });
           
           setCalls(enhancedCalls);
+          
+          // Extract unique agents for filter dropdown
+          const agents = enhancedCalls
+            .map(call => ({ id: call.assistantId, name: call.agentName || 'Unknown' }))
+            .filter((agent, index, self) => 
+              index === self.findIndex(a => a.id === agent.id)
+            );
+          setUniqueAgents(agents);
+          
           // Select the first call by default if available
           if (enhancedCalls.length > 0) {
             setSelectedCall(enhancedCalls[0]);
@@ -310,21 +339,46 @@ const Calls: React.FC = () => {
     setSelectedCall(updatedCalls.find(call => call.id === selectedCall.id) || null);
     setNewMessage("");
   };
+  
+  // Function to clear all filters
+  const clearFilters = () => {
+    setSelectedAgentFilter("");
+    setSelectedDate(undefined);
+  };
 
   const getFilteredCalls = () => {
+    // First, filter by tab status
+    let filtered = calls;
+    
     switch (activeTab) {
       case "unresolved":
-        return calls.filter(call => call.status.toLowerCase() === 'in-progress');
+        filtered = calls.filter(call => call.status.toLowerCase() === 'in-progress');
+        break;
       case "resolved":
-        return calls.filter(call => 
+        filtered = calls.filter(call => 
           call.status.toLowerCase() === 'completed' || 
           (call.status.toLowerCase() === 'ended' && !call.endedReason?.includes('error'))
         );
+        break;
       case "autoresolved":
-        return calls.filter(call => call.status.toLowerCase() === 'completed' && call.endedReason === 'auto_resolved');
-      default:
-        return calls;
+        filtered = calls.filter(call => call.status.toLowerCase() === 'completed' && call.endedReason === 'auto_resolved');
+        break;
     }
+    
+    // Then filter by agent if selected
+    if (selectedAgentFilter) {
+      filtered = filtered.filter(call => call.assistantId === selectedAgentFilter);
+    }
+    
+    // Then filter by date if selected
+    if (selectedDate) {
+      filtered = filtered.filter(call => {
+        const callDate = new Date(call.createdAt);
+        return isSameDay(callDate, selectedDate);
+      });
+    }
+    
+    return filtered;
   };
 
   return (
@@ -364,6 +418,73 @@ const Calls: React.FC = () => {
               </TabsTrigger>
             </TabsList>
           </Tabs>
+        </div>
+        
+        {/* Filter section */}
+        <div className="mb-4">
+          <Button 
+            variant="outline" 
+            className="w-full flex items-center justify-between mb-2"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <div className="flex items-center">
+              <Filter className="h-4 w-4 mr-2" />
+              Filters
+            </div>
+            <ChevronDown className={`h-4 w-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+          </Button>
+          
+          {showFilters && (
+            <div className="p-3 border rounded-md space-y-3">
+              {/* Agent filter */}
+              <div>
+                <label className="text-sm font-medium block mb-1">Agent</label>
+                <Select value={selectedAgentFilter} onValueChange={setSelectedAgentFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Any Agent" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Any Agent</SelectItem>
+                    {uniqueAgents.map(agent => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        {agent.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Date filter */}
+              <div>
+                <label className="text-sm font-medium block mb-1">Date</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <CalendarRange className="mr-2 h-4 w-4" />
+                      {selectedDate ? format(selectedDate, 'PPP') : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={setSelectedDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              
+              {/* Clear filters button */}
+              <Button 
+                variant="ghost" 
+                className="w-full text-sm"
+                onClick={clearFilters}
+              >
+                Clear filters
+              </Button>
+            </div>
+          )}
         </div>
         
         {error && (
