@@ -233,6 +233,10 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
     console.log("Got VAPI agent ID:", vapiAgentId);
     console.log("Saving agent to Supabase database");
     
+    // Generate a dummy org_id since the field is required by the database schema
+    // but we're not using organization logic anymore
+    const dummyOrgId = '00000000-0000-0000-0000-000000000000';
+    
     // Save agent to database using the ID provided by VAPI API
     const { data: agent, error } = await supabase
       .from('agents')
@@ -241,7 +245,8 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
         name: agentData.name,
         voice_id: agentData.voice.voiceId,
         prompt: agentData.model.messages[0].content,
-        status: 'active'
+        status: 'active',
+        org_id: dummyOrgId // Add dummy org_id to satisfy database constraints
       })
       .select()
       .single();
