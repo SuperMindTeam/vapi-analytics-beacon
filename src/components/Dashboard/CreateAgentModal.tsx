@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import {
   Dialog,
@@ -31,6 +32,24 @@ interface CreateAgentModalProps {
   }[];
 }
 
+// Predefined voices list as a fallback
+const predefinedVoices = [
+  { voice_id: "marissa", name: "Marissa" },
+  { voice_id: "andrea", name: "Andrea" },
+  { voice_id: "sarah", name: "Sarah" },
+  { voice_id: "phillip", name: "Phillip" },
+  { voice_id: "steve", name: "Steve" },
+  { voice_id: "joseph", name: "Joseph" },
+  { voice_id: "myra", name: "Myra" },
+  { voice_id: "paula", name: "Paula" },
+  { voice_id: "ryan", name: "Ryan" },
+  { voice_id: "drew", name: "Drew" },
+  { voice_id: "paul", name: "Paul" },
+  { voice_id: "mrb", name: "Mr. B" },
+  { voice_id: "matilda", name: "Matilda" },
+  { voice_id: "mark", name: "Mark" },
+];
+
 const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, organizations = [] }) => {
   const [name, setName] = useState("");
   const [voiceId, setVoiceId] = useState<string | undefined>(undefined);
@@ -39,13 +58,17 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
   const [orgId, setOrgId] = useState<string | undefined>(undefined);
   const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
   const [isCreating, setIsCreating] = useState(false);
+  const [useDefaultVoices, setUseDefaultVoices] = useState(false);
 
   const { data: voices, isLoading: isLoadingVoices, error: voicesError } = useQuery({
     queryKey: ['voices'],
     queryFn: getVoices,
     retry: 3, // Retry 3 times if it fails
-    onError: (error: any) => {
-      console.error("Error fetching voices:", error);
+    onSettled: (data, error) => {
+      if (error) {
+        console.error("Error fetching voices:", error);
+        setUseDefaultVoices(true);
+      }
     }
   });
 
@@ -136,6 +159,11 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
     setVoiceId(value);
   };
 
+  // Determine which voice list to use
+  const voicesToDisplay = useDefaultVoices || voicesError || !voices || voices.length === 0 
+    ? predefinedVoices 
+    : voices;
+
   if (isLoadingVoices) {
     return (
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -147,24 +175,6 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
             <div className="animate-spin mr-2 h-6 w-6 border-b-2 border-gray-500 rounded-full"></div>
             <p>Loading voice options...</p>
           </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  if (voicesError) {
-    return (
-      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Create New Agent</DialogTitle>
-          </DialogHeader>
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Unable to load voice options. Using default voice settings.
-            </AlertDescription>
-          </Alert>
         </DialogContent>
       </Dialog>
     );
@@ -189,6 +199,15 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
             Create a new AI agent for your organization
           </DialogDescription>
         </DialogHeader>
+        
+        {useDefaultVoices && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Unable to fetch voices from API. Using predefined voice list instead.
+            </AlertDescription>
+          </Alert>
+        )}
         
         <form onSubmit={handleSubmit} className="space-y-6 py-4">
           <div className="grid gap-2">
@@ -223,30 +242,21 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
 
           <div className="grid gap-2">
             <Label htmlFor="voice">Voice</Label>
-            {voices && voices.length > 0 ? (
-              <Select onValueChange={handleVoiceSelect} value={voiceId} disabled={createAgentMutation.isPending}>
-                <SelectTrigger className="flex items-center gap-2">
-                  <SelectValue placeholder="Select a voice" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {voices.map((voice) => (
-                      <SelectItem key={voice.voice_id} value={voice.voice_id}>
-                        {voice.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            ) : (
-              <Input
-                id="voiceDefault"
-                value="Default voice will be used"
-                readOnly
-                className="bg-muted/20"
-              />
-            )}
-            {validationErrors.voiceId && !voicesError && (
+            <Select onValueChange={handleVoiceSelect} value={voiceId} disabled={createAgentMutation.isPending}>
+              <SelectTrigger className="flex items-center gap-2">
+                <SelectValue placeholder="Select a voice" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {voicesToDisplay.map((voice) => (
+                    <SelectItem key={voice.voice_id} value={voice.voice_id}>
+                      {voice.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            {validationErrors.voiceId && (
               <p className="text-sm text-red-500">Voice is required</p>
             )}
           </div>
