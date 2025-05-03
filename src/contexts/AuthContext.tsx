@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,9 +27,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Function to fetch and set the user's organization ID
   const fetchUserOrg = async (userId: string) => {
+    if (!userId) return;
+    
     try {
       console.log("Fetching organization for user:", userId);
-      
       const { data, error } = await supabase
         .from('org_members')
         .select('org_id')
@@ -40,77 +40,77 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error("Error fetching user's organization:", error);
-        
-        // If no default org found, try without the is_default filter
-        const { data: anyOrgData, error: anyOrgError } = await supabase
-          .from('org_members')
-          .select('org_id')
-          .eq('user_id', userId)
-          .single();
-          
-        if (!anyOrgError && anyOrgData) {
-          console.log("Found non-default organization:", anyOrgData.org_id);
-          setOrgId(anyOrgData.org_id);
-        } else {
-          console.error("No organization found for user:", anyOrgError);
-        }
-        
         return;
       }
 
       if (data) {
-        console.log("User's organization fetched:", data.org_id);
+        console.log("User's organization fetched successfully:", data.org_id);
         setOrgId(data.org_id);
+      } else {
+        console.log("No default organization found for user");
+        setOrgId(null);
       }
     } catch (error) {
       console.error("Error in fetchUserOrg:", error);
     }
   };
 
+  // Handle initial session and setup auth state listener
   useEffect(() => {
-    // Set up auth state listener FIRST
+    const initializeAuth = async () => {
+      try {
+        // First get the current session
+        const { data: sessionData } = await supabase.auth.getSession();
+        const currentSession = sessionData.session;
+        
+        setSession(currentSession);
+        
+        if (currentSession?.user) {
+          setUser(currentSession.user);
+          setUserId(currentSession.user.id);
+          // Fetch organization after user is set
+          await fetchUserOrg(currentSession.user.id);
+        }
+      } catch (error) {
+        console.error("Error initializing auth:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Initialize auth state
+    initializeAuth();
+
+    // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         console.log("Auth state changed:", event);
-        setSession(currentSession);
-        const currentUser = currentSession?.user ?? null;
-        setUser(currentUser);
         
-        // Set user ID when auth state changes
-        if (currentUser) {
-          setUserId(currentUser.id);
-          // Fetch org ID when user is available, using setTimeout to avoid recursive calls
-          setTimeout(() => {
-            fetchUserOrg(currentUser.id);
-          }, 0);
+        setSession(currentSession);
+        
+        if (currentSession?.user) {
+          setUser(currentSession.user);
+          setUserId(currentSession.user.id);
+          
+          // Fetch org when auth state changes and we have a user
+          await fetchUserOrg(currentSession.user.id);
         } else {
+          setUser(null);
           setUserId(null);
           setOrgId(null);
         }
         
         if (event === 'SIGNED_OUT') {
           navigate('/auth');
+        } else if (event === 'SIGNED_IN') {
+          navigate('/');
         }
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      setSession(currentSession);
-      const currentUser = currentSession?.user ?? null;
-      setUser(currentUser);
-      
-      // Set user ID if session exists
-      if (currentUser) {
-        setUserId(currentUser.id);
-        // Fetch org ID using the user ID
-        fetchUserOrg(currentUser.id);
-      }
-      
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [navigate]);
 
   const signIn = async (email: string, password: string) => {
@@ -125,7 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       toast.success("Successfully signed in!");
-      navigate('/');
+      // Navigation is handled in the auth state change listener
     } catch (error: any) {
       toast.error(error.message || "Failed to sign in");
       console.error("Sign in error:", error);
@@ -162,23 +162,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       }
       toast.success("Successfully signed out!");
+      // Navigation is handled in the auth state change listener
     } catch (error: any) {
       toast.error(error.message || "Failed to sign out");
       console.error("Sign out error:", error);
     }
   };
 
+  const contextValue = {
+    session, 
+    user, 
+    loading, 
+    userId, 
+    orgId,
+    signIn, 
+    signUp, 
+    signOut 
+  };
+
   return (
-    <AuthContext.Provider value={{ 
-      session, 
-      user, 
-      loading, 
-      userId, 
-      orgId,
-      signIn, 
-      signUp, 
-      signOut 
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
