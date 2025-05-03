@@ -64,14 +64,11 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
     queryKey: ['voices'],
     queryFn: getVoices,
     retry: 3,
-    onSuccess: (data) => {
-      if (!data || data.length === 0) {
+    onSettled: (data, error) => {
+      if (error || !data || data.length === 0) {
+        console.error("Error fetching voices or empty response, using predefined list");
         setUseDefaultVoices(true);
       }
-    },
-    onError: () => {
-      console.error("Error fetching voices, using predefined list");
-      setUseDefaultVoices(true);
     }
   });
 
