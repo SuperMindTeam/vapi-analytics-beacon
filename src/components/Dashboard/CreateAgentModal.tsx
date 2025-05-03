@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import {
   Dialog,
@@ -14,8 +13,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createAgent, getVoices } from "@/services/vapiService";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building } from "lucide-react";
+import { Building, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Define the props interface for CreateAgentModal
 interface CreateAgentModalProps {
@@ -43,6 +43,10 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
   const { data: voices, isLoading: isLoadingVoices, error: voicesError } = useQuery({
     queryKey: ['voices'],
     queryFn: getVoices,
+    retry: 3, // Retry 3 times if it fails
+    onError: (error: any) => {
+      console.error("Error fetching voices:", error);
+    }
   });
 
   const createAgentMutation = useMutation({
@@ -132,8 +136,39 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
     setVoiceId(value);
   };
 
-  if (isLoadingVoices) return <div>Loading...</div>;
-  if (voicesError) return <div>Error loading voices data</div>;
+  if (isLoadingVoices) {
+    return (
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Create New Agent</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin mr-2 h-6 w-6 border-b-2 border-gray-500 rounded-full"></div>
+            <p>Loading voice options...</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (voicesError) {
+    return (
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Create New Agent</DialogTitle>
+          </DialogHeader>
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Unable to load voice options. Using default voice settings.
+            </AlertDescription>
+          </Alert>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
@@ -188,21 +223,30 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
 
           <div className="grid gap-2">
             <Label htmlFor="voice">Voice</Label>
-            <Select onValueChange={handleVoiceSelect} value={voiceId} disabled={createAgentMutation.isPending}>
-              <SelectTrigger className="flex items-center gap-2">
-                <SelectValue placeholder="Select a voice" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {voices && voices.map((voice) => (
-                    <SelectItem key={voice.voice_id} value={voice.voice_id}>
-                      {voice.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            {validationErrors.voiceId && (
+            {voices && voices.length > 0 ? (
+              <Select onValueChange={handleVoiceSelect} value={voiceId} disabled={createAgentMutation.isPending}>
+                <SelectTrigger className="flex items-center gap-2">
+                  <SelectValue placeholder="Select a voice" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {voices.map((voice) => (
+                      <SelectItem key={voice.voice_id} value={voice.voice_id}>
+                        {voice.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                id="voiceDefault"
+                value="Default voice will be used"
+                readOnly
+                className="bg-muted/20"
+              />
+            )}
+            {validationErrors.voiceId && !voicesError && (
               <p className="text-sm text-red-500">Voice is required</p>
             )}
           </div>

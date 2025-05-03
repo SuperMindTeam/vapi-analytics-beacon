@@ -492,11 +492,11 @@ export const getCallStatistics = async () => {
   }
 };
 
-// Voice options - using /voice endpoint
+// Voice options - updating the endpoint to the correct one
 export const getVoices = async () => {
   try {
-    // Explicitly type the response to handle both formats
-    const response = await fetchFromVapi<any[] | VapiResponse<any[]>>("/voice");
+    // Using /voices endpoint instead of /voice (which doesn't exist)
+    const response = await fetchFromVapi<any[] | VapiResponse<any[]>>("/voices");
     
     // Properly check and extract data based on response structure
     if (Array.isArray(response)) {
