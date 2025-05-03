@@ -39,13 +39,15 @@ const AgentsList: React.FC = () => {
     queryFn: getAgents,
     retry: 1,
     staleTime: 30000, // 30 seconds
-    onError: (err) => {
-      console.error('Error fetching agents:', err);
-      // Log the full error to help with debugging
-      const errorMessage = err instanceof Error 
-        ? err.message 
-        : 'Unknown error occurred';
-      toast.error(`Failed to fetch agents: ${errorMessage}`);
+    meta: {
+      onError: (err: Error) => {
+        console.error('Error fetching agents:', err);
+        // Log the full error to help with debugging
+        const errorMessage = err instanceof Error 
+          ? err.message 
+          : 'Unknown error occurred';
+        toast.error(`Failed to fetch agents: ${errorMessage}`);
+      }
     }
   });
   
@@ -90,13 +92,16 @@ const AgentsList: React.FC = () => {
   if (error) {
     // Extract a more detailed error message
     let errorMessage = 'Unknown error occurred';
+    let errorDetails = '';
     
     if (error instanceof Error) {
       errorMessage = error.message;
       
       // Check for common Supabase policy errors
       if (errorMessage.includes("policy")) {
-        errorMessage += ". This may be related to database access permissions.";
+        errorDetails = "This may be related to database access permissions.";
+      } else if (errorMessage.includes("infinite recursion")) {
+        errorDetails = "There appears to be an issue with the database policies.";
       }
       
       // Log additional details if available
@@ -114,6 +119,7 @@ const AgentsList: React.FC = () => {
           <Alert variant="destructive">
             <AlertDescription>
               Failed to load data. {errorMessage}
+              {errorDetails && <p className="mt-1 text-sm">{errorDetails}</p>}
             </AlertDescription>
           </Alert>
           <Button 

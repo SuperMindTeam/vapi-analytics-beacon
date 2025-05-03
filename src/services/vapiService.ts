@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -128,19 +129,25 @@ export const getAgents = async (): Promise<Agent[]> => {
     
     console.log("Current authenticated user:", user.id);
     
-    // Use the security definer function to get the user's organizations first
-    console.log("Fetching user's organizations");
-    const orgs = await getUserOrganizations();
+    // Use the RPC function to get the user's organizations
+    console.log("Fetching user's organizations using RPC function");
+    const { data: orgMembers, error: membersError } = await supabase
+      .rpc('get_user_org_memberships', { user_id_param: user.id });
     
-    if (!orgs || orgs.length === 0) {
+    if (membersError) {
+      console.error("Failed to fetch user's organizations:", membersError);
+      throw membersError;
+    }
+    
+    if (!orgMembers || orgMembers.length === 0) {
       console.warn("No organizations found for the user");
       return []; // Return empty array instead of throwing an error
     }
     
-    console.log("User's organizations:", orgs);
+    console.log("User's organizations:", orgMembers);
     
     // Get all agents for organizations the user is a member of
-    const orgIds = orgs.map(org => org.id);
+    const orgIds = orgMembers.map(org => org.org_id);
     
     console.log("Querying agents for org IDs:", orgIds);
     
