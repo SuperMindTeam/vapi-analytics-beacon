@@ -195,72 +195,25 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
       throw new Error("No authenticated user found");
     }
     
-    // Get user's default organization if not specified
+    // Use the provided org_id or find the user's default organization
     let orgId = agentData.org_id;
     if (!orgId) {
       console.log("No org_id provided, looking for default organization");
       
-      const { data: orgMembers, error: orgError } = await supabase
+      // Get the user's default organization - simplified query
+      const { data: orgMember, error: orgError } = await supabase
         .from('org_members')
         .select('org_id')
         .eq('user_id', user.id)
-        .eq('is_default', true)
+        .limit(1)
         .single();
       
-      if (orgError) {
-        console.log("Error finding default organization:", orgError);
-        console.log("Will attempt to find any organization for the user");
-        
-        // Try to find any organization the user belongs to
-        const { data: anyOrgMembers, error: anyOrgError } = await supabase
-          .from('org_members')
-          .select('org_id')
-          .eq('user_id', user.id)
-          .limit(1)
-          .single();
-          
-        if (anyOrgError || !anyOrgMembers) {
-          console.log("No organizations found for user. Creating a default organization.");
-          
-          // Create a new organization for the user
-          const orgName = `${user.email?.split('@')[0] || 'user'}-org`;
-          const { data: newOrg, error: createOrgError } = await supabase
-            .from('orgs')
-            .insert({
-              name: orgName,
-              email: user.email
-            })
-            .select()
-            .single();
-            
-          if (createOrgError || !newOrg) {
-            throw new Error("Failed to create organization: " + createOrgError?.message);
-          }
-          
-          // Add user to the new organization as owner
-          const { error: addMemberError } = await supabase
-            .from('org_members')
-            .insert({
-              org_id: newOrg.id,
-              user_id: user.id,
-              role: 'owner',
-              is_default: true
-            });
-            
-          if (addMemberError) {
-            throw new Error("Failed to add user to organization: " + addMemberError.message);
-          }
-          
-          orgId = newOrg.id;
-          console.log("Created new organization:", newOrg.name, "with ID:", orgId);
-        } else {
-          orgId = anyOrgMembers.org_id;
-          console.log("Found organization with ID:", orgId);
-        }
-      } else {
-        orgId = orgMembers.org_id;
-        console.log("Found default organization with ID:", orgId);
+      if (orgError || !orgMember) {
+        throw new Error("Failed to find an organization for the user. Please select an organization or create one first.");
       }
+      
+      orgId = orgMember.org_id;
+      console.log("Found organization with ID:", orgId);
     }
     
     if (!orgId) {

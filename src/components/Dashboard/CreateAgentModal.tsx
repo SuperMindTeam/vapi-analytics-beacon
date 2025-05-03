@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import {
   Dialog,
@@ -63,12 +62,10 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
   const { data: voices, isLoading: isLoadingVoices, error: voicesError } = useQuery({
     queryKey: ['voices'],
     queryFn: getVoices,
-    retry: 3, // Retry 3 times if it fails
-    onSettled: (data, error) => {
-      if (error) {
-        console.error("Error fetching voices:", error);
-        setUseDefaultVoices(true);
-      }
+    retry: 3,
+    onError: (error) => {
+      console.error("Error fetching voices:", error);
+      setUseDefaultVoices(true);
     }
   });
 
