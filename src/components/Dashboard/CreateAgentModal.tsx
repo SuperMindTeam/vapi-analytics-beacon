@@ -9,9 +9,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { useForm, SubmitHandler } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
@@ -33,7 +32,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useOrganization } from "@/contexts/OrganizationContext";
 
 // Define the form validation schema using Zod
 const createAgentFormSchema = z.object({
@@ -60,7 +58,6 @@ interface CreateAgentModalProps {
 const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [voices, setVoices] = useState<Array<{id: string; name: string}>>([]);
-  const { currentOrganization } = useOrganization();
 
   useEffect(() => {
     const fetchVoices = async () => {
@@ -87,15 +84,11 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose }) 
     },
   });
 
-  const onSubmit: SubmitHandler<CreateAgentFormValues> = async (values) => {
+  const onSubmit = async (values: CreateAgentFormValues) => {
     try {
       setIsSubmitting(true);
-      
-      if (!currentOrganization) {
-        throw new Error("No organization selected");
-      }
 
-      // Add the organization ID to the request
+      // Create agent without organization ID
       await createAgent({
         name: values.name,
         model: {
@@ -112,8 +105,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose }) 
           provider: "openai",
           voiceId: values.voice
         },
-        firstMessage: values.firstMessage,
-        org_id: currentOrganization.id // Use the organization ID from context
+        firstMessage: values.firstMessage
       });
       
       onClose();

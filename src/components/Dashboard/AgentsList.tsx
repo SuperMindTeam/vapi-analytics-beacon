@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { 
   Card,
@@ -22,29 +23,25 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAgents, deleteAgent } from "@/services/vapiService";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useOrganization } from "@/contexts/OrganizationContext";
 
 const AgentsList: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const queryClient = useQueryClient();
-  const { currentOrganization } = useOrganization();
   
-  // Fetch agents data with better error handling
+  // Fetch agents data without organization ID
   const { 
     data: agents, 
     isLoading, 
     error,
     refetch
   } = useQuery({
-    queryKey: ["agents", currentOrganization?.id],
-    queryFn: () => getAgents(currentOrganization?.id),
+    queryKey: ["agents"],
+    queryFn: () => getAgents(),
     retry: 1,
     staleTime: 30000, // 30 seconds
-    enabled: !!currentOrganization?.id,
     meta: {
       onError: (err: Error) => {
         console.error('Error fetching agents:', err);
-        // Log the full error to help with debugging
         const errorMessage = err instanceof Error 
           ? err.message 
           : 'Unknown error occurred';
@@ -57,7 +54,7 @@ const AgentsList: React.FC = () => {
   const deleteAgentMutation = useMutation({
     mutationFn: deleteAgent,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agents", currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ["agents"] });
       toast.success("Agent deleted successfully!");
     },
     onError: (error) => {
@@ -73,22 +70,6 @@ const AgentsList: React.FC = () => {
     }
   };
 
-  // If no organization is selected yet
-  if (!currentOrganization) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Agents</CardTitle>
-        </CardHeader>
-        <CardContent className="flex justify-center py-10">
-          <div className="text-center">
-            <p className="text-muted-foreground">Loading organization data...</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-  
   // Render loading state
   if (isLoading) {
     return (
@@ -108,21 +89,18 @@ const AgentsList: React.FC = () => {
   
   // Render error state with detailed error message and retry button
   if (error) {
-    // Extract a more detailed error message
     let errorMessage = 'Unknown error occurred';
     let errorDetails = '';
     
     if (error instanceof Error) {
       errorMessage = error.message;
       
-      // Check for common Supabase policy errors
       if (errorMessage.includes("policy")) {
         errorDetails = "This may be related to database access permissions.";
       } else if (errorMessage.includes("infinite recursion")) {
         errorDetails = "There appears to be an issue with the database policies.";
       }
       
-      // Log additional details if available
       if ('cause' in error) {
         console.error('Error cause:', error.cause);
       }
@@ -174,7 +152,6 @@ const AgentsList: React.FC = () => {
                   <TableHead>Name</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Voice</TableHead>
-                  <TableHead>Organization</TableHead>
                   <TableHead>Active Calls</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -197,12 +174,6 @@ const AgentsList: React.FC = () => {
                       </Badge>
                     </TableCell>
                     <TableCell>{capitalize(agent.voice_id || 'default')}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Building size={16} className="text-muted-foreground" />
-                        <span>{agent.org_name || 'Unknown'}</span>
-                      </div>
-                    </TableCell>
                     <TableCell>
                       {agent.active_calls > 0 ? (
                         <Badge variant="outline" className="bg-blue-50">
@@ -260,7 +231,7 @@ const AgentsList: React.FC = () => {
         onClose={() => {
           setIsCreateModalOpen(false);
           // Refresh agents list after creating a new agent
-          queryClient.invalidateQueries({ queryKey: ["agents", currentOrganization?.id] });
+          queryClient.invalidateQueries({ queryKey: ["agents"] });
         }}
       />
     </>
