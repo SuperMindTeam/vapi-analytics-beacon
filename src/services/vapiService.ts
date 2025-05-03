@@ -199,33 +199,32 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
     if (!orgId) {
       console.log("No org_id provided, looking for user's organization");
       
-      // Get the user's organization - we look for the organization with the same ID as the user
-      // This is because when users sign up, their org ID is set to their user ID
-      const { data: org, error: orgError } = await supabase
-        .from('orgs')
-        .select('id')
-        .eq('id', user.id)
-        .single();
+      // First try: Get any organization membership for the user
+      const { data: orgMembers, error: memberError } = await supabase
+        .from('org_members')
+        .select('org_id')
+        .eq('user_id', user.id);
       
-      if (orgError || !org) {
-        // Fallback to find any organization the user belongs to
-        const { data: orgMember, error: memberError } = await supabase
-          .from('org_members')
-          .select('org_id')
-          .eq('user_id', user.id)
-          .limit(1)
-          .single();
-          
-        if (memberError || !orgMember) {
-          throw new Error("Failed to find an organization for the user. Please check your organization settings.");
-        }
-        
-        orgId = orgMember.org_id;
-      } else {
-        orgId = org.id;
+      if (memberError) {
+        console.error("Error fetching org memberships:", memberError);
+        throw new Error("Failed to find organization memberships for your account");
       }
       
-      console.log("Found organization with ID:", orgId);
+      if (!orgMembers || orgMembers.length === 0) {
+        console.error("No organization memberships found for user:", user.id);
+        throw new Error("No organizations found for your account. Please create an organization first.");
+      }
+      
+      // Prefer default organization if available
+      const defaultOrg = orgMembers.find(member => member.is_default);
+      if (defaultOrg) {
+        orgId = defaultOrg.org_id;
+        console.log("Using default organization with ID:", orgId);
+      } else {
+        // Otherwise use the first organization found
+        orgId = orgMembers[0].org_id;
+        console.log("Using first available organization with ID:", orgId);
+      }
     }
     
     if (!orgId) {
