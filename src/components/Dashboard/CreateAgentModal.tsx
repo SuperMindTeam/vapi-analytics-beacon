@@ -5,7 +5,8 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle,
-  DialogFooter
+  DialogFooter,
+  DialogDescription
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -23,7 +24,8 @@ import { Badge } from "@/components/ui/badge";
 import { createAgent } from "@/services/vapiService";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Building } from "lucide-react";
+import { Loader2, Building, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Updated VAPI approved voice options for ElevenLabs
 const voiceOptions = [
@@ -67,6 +69,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
   const [prompt, setPrompt] = useState("");
   const [firstMessage, setFirstMessage] = useState("Hello! How can I assist you today?");
   const [orgId, setOrgId] = useState("");
+  const [validationErrors, setValidationErrors] = useState<{[key: string]: boolean}>({});
   
   // Find default organization if available
   useEffect(() => {
@@ -100,6 +103,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
       setVoiceId("");
       setPrompt("");
       setFirstMessage("Hello! How can I assist you today?");
+      setValidationErrors({});
       
       // Refresh agents list and close modal
       queryClient.invalidateQueries({ queryKey: ["agents"] });
@@ -112,11 +116,40 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
     }
   });
 
+  const validateForm = () => {
+    const errors: {[key: string]: boolean} = {};
+    
+    if (!name.trim()) errors.name = true;
+    if (!voiceId) errors.voiceId = true;
+    if (!prompt.trim()) errors.prompt = true;
+    if (!firstMessage.trim()) errors.firstMessage = true;
+    if (!orgId) errors.orgId = true;
+    
+    setValidationErrors(errors);
+    
+    // Return true if no errors
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!name || !voiceId || !prompt || !orgId) {
-      toast.error("Please fill in all required fields");
+    // Perform validation
+    const isValid = validateForm();
+    
+    if (!isValid) {
+      const missingFields = Object.keys(validationErrors).map(field => {
+        switch (field) {
+          case 'name': return 'Agent Name';
+          case 'voiceId': return 'Voice';
+          case 'prompt': return 'Agent Prompt';
+          case 'firstMessage': return 'First Message';
+          case 'orgId': return 'Organization';
+          default: return field;
+        }
+      }).join(', ');
+      
+      toast.error(`Please fill in all required fields: ${missingFields}`);
       return;
     }
     
@@ -157,31 +190,48 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Create New Agent</DialogTitle>
+            <DialogDescription>
+              Fill all required fields to create a new voice agent.
+            </DialogDescription>
           </DialogHeader>
           
           <div className="grid gap-6 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="name">Agent Name</Label>
+              <Label htmlFor="name" className={validationErrors.name ? "text-destructive" : ""}>
+                Agent Name *
+              </Label>
               <Input
                 id="name"
                 placeholder="e.g., Customer Support Agent"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setValidationErrors({...validationErrors, name: false});
+                }}
+                className={validationErrors.name ? "border-destructive" : ""}
                 required
                 disabled={createAgentMutation.isPending}
               />
+              {validationErrors.name && (
+                <p className="text-xs text-destructive">Agent name is required</p>
+              )}
             </div>
             
             {organizations.length > 0 && (
               <div className="grid gap-2">
-                <Label htmlFor="organization">Organization</Label>
+                <Label htmlFor="organization" className={validationErrors.orgId ? "text-destructive" : ""}>
+                  Organization *
+                </Label>
                 <Select 
                   value={orgId} 
-                  onValueChange={setOrgId}
+                  onValueChange={(value) => {
+                    setOrgId(value);
+                    setValidationErrors({...validationErrors, orgId: false});
+                  }}
                   required
                   disabled={createAgentMutation.isPending}
                 >
-                  <SelectTrigger className="flex items-center gap-2">
+                  <SelectTrigger className={`flex items-center gap-2 ${validationErrors.orgId ? "border-destructive" : ""}`}>
                     <Building className="h-4 w-4 text-muted-foreground" />
                     <SelectValue placeholder="Select an organization" />
                   </SelectTrigger>
@@ -204,18 +254,26 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
                 <p className="text-xs text-muted-foreground mt-1">
                   Organization the agent will belong to
                 </p>
+                {validationErrors.orgId && (
+                  <p className="text-xs text-destructive">Organization is required</p>
+                )}
               </div>
             )}
             
             <div className="grid gap-2">
-              <Label htmlFor="voice">Voice</Label>
+              <Label htmlFor="voice" className={validationErrors.voiceId ? "text-destructive" : ""}>
+                Voice *
+              </Label>
               <Select 
                 value={voiceId} 
-                onValueChange={setVoiceId} 
+                onValueChange={(value) => {
+                  setVoiceId(value);
+                  setValidationErrors({...validationErrors, voiceId: false});
+                }}
                 required
                 disabled={createAgentMutation.isPending}
               >
-                <SelectTrigger>
+                <SelectTrigger className={validationErrors.voiceId ? "border-destructive" : ""}>
                   <SelectValue placeholder="Select a voice" />
                 </SelectTrigger>
                 <SelectContent>
@@ -233,15 +291,24 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
                   </SelectGroup>
                 </SelectContent>
               </Select>
+              {validationErrors.voiceId && (
+                <p className="text-xs text-destructive">Voice is required</p>
+              )}
             </div>
             
             <div className="grid gap-2">
-              <Label htmlFor="prompt">Agent Prompt</Label>
+              <Label htmlFor="prompt" className={validationErrors.prompt ? "text-destructive" : ""}>
+                Agent Prompt *
+              </Label>
               <Textarea
                 id="prompt"
                 placeholder="Define how your agent should behave and respond..."
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e) => {
+                  setPrompt(e.target.value);
+                  setValidationErrors({...validationErrors, prompt: false});
+                }}
+                className={validationErrors.prompt ? "border-destructive" : ""}
                 rows={6}
                 required
                 disabled={createAgentMutation.isPending}
@@ -250,21 +317,33 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({
                 Write a detailed prompt that defines your agent's persona, 
                 knowledge, and how it should handle calls.
               </p>
+              {validationErrors.prompt && (
+                <p className="text-xs text-destructive">Agent prompt is required</p>
+              )}
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="firstMessage">First Message</Label>
+              <Label htmlFor="firstMessage" className={validationErrors.firstMessage ? "text-destructive" : ""}>
+                First Message *
+              </Label>
               <Input
                 id="firstMessage"
                 placeholder="Hello! How can I assist you today?"
                 value={firstMessage}
-                onChange={(e) => setFirstMessage(e.target.value)}
+                onChange={(e) => {
+                  setFirstMessage(e.target.value);
+                  setValidationErrors({...validationErrors, firstMessage: false});
+                }}
+                className={validationErrors.firstMessage ? "border-destructive" : ""}
                 required
                 disabled={createAgentMutation.isPending}
               />
               <p className="text-xs text-muted-foreground mt-1">
                 First message the agent will say when a call connects.
               </p>
+              {validationErrors.firstMessage && (
+                <p className="text-xs text-destructive">First message is required</p>
+              )}
             </div>
           </div>
           
