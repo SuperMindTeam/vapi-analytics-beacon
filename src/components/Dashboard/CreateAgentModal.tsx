@@ -1,419 +1,191 @@
-
 import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { createAgent, getVoices } from "@/services/vapiService";
+import { Button } from "@/components/ui/button";
+import { useForm, SubmitHandler } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { toast } from "sonner";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building, AlertCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { supabase } from "@/integrations/supabase/client";
+import { createAgent, getVoices } from "@/services/vapiService";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2 } from "lucide-react";
 
-// Define the props interface for CreateAgentModal
+// Define the form validation schema using Zod
+const createAgentFormSchema = z.object({
+  name: z.string().min(2, {
+    message: "Agent name must be at least 2 characters.",
+  }),
+  voice: z.string().min(1, {
+    message: "Please select a voice for the agent.",
+  }),
+  prompt: z.string().min(10, {
+    message: "Prompt must be at least 10 characters.",
+  }),
+  firstMessage: z.string().optional(),
+});
+
+// Define a type for the form values based on the schema
+type CreateAgentFormValues = z.infer<typeof createAgentFormSchema>;
+
+// Add orgId prop to the component's props interface
 interface CreateAgentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  organizations?: {
-    id: string;
-    name: string;
-    email?: string | null;
-    business_name?: string | null;
-    isDefault?: boolean;
-    [key: string]: any;
-  }[];
+  orgId: string;
 }
 
-// Predefined voices list as a fallback
-const predefinedVoices = [
-  { voice_id: "marissa", name: "Marissa" },
-  { voice_id: "andrea", name: "Andrea" },
-  { voice_id: "sarah", name: "Sarah" },
-  { voice_id: "phillip", name: "Phillip" },
-  { voice_id: "steve", name: "Steve" },
-  { voice_id: "joseph", name: "Joseph" },
-  { voice_id: "myra", name: "Myra" },
-  { voice_id: "paula", name: "Paula" },
-  { voice_id: "ryan", name: "Ryan" },
-  { voice_id: "drew", name: "Drew" },
-  { voice_id: "paul", name: "Paul" },
-  { voice_id: "mrb", name: "Mr. B" },
-  { voice_id: "matilda", name: "Matilda" },
-  { voice_id: "mark", name: "Mark" },
-];
+const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, orgId }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [voices, setVoices] = useState([]);
 
-const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, organizations = [] }) => {
-  const [name, setName] = useState("");
-  const [voiceId, setVoiceId] = useState<string | undefined>(undefined);
-  const [prompt, setPrompt] = useState("");
-  const [firstMessage, setFirstMessage] = useState("");
-  const [orgId, setOrgId] = useState<string | undefined>(undefined);
-  const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
-  const [useDefaultVoices, setUseDefaultVoices] = useState(false);
-  const [userOrgs, setUserOrgs] = useState<any[]>([]);
-  const [isLoadingOrgs, setIsLoadingOrgs] = useState(false);
-
-  // Fetch organizations directly without using the security definer function
-  const fetchUserOrgs = async () => {
-    setIsLoadingOrgs(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("No authenticated user found");
-      
-      // Get organization memberships - RLS will filter to only this user's memberships
-      const { data: memberships, error: membershipError } = await supabase
-        .from('org_members')
-        .select('org_id, is_default')
-        .eq('user_id', user.id);
-      
-      if (membershipError) throw membershipError;
-      
-      // Fetch organization details 
-      if (memberships && memberships.length > 0) {
-        const orgIds = memberships.map(org => org.org_id);
-        const { data: orgsData, error: orgsError } = await supabase
-          .from('orgs')
-          .select('*')
-          .in('id', orgIds);
-          
-        if (orgsError) throw orgsError;
-        
-        // Combine org data with membership data
-        const orgsWithMembership = orgsData.map(org => {
-          const membership = memberships.find(m => m.org_id === org.id);
-          return {
-            ...org,
-            isDefault: membership?.is_default || false
-          };
-        });
-        
-        setUserOrgs(orgsWithMembership);
-        
-        // Set default organization
-        if (orgsWithMembership.length > 0) {
-          const defaultOrg = orgsWithMembership.find(org => org.isDefault);
-          setOrgId(defaultOrg ? defaultOrg.id : orgsWithMembership[0].id);
-        }
-      }
-      
-      console.log("Successfully fetched user organizations:", memberships);
-      
-    } catch (error) {
-      console.error("Error fetching organizations:", error);
-      toast.error("Failed to load organizations");
-    } finally {
-      setIsLoadingOrgs(false);
-    }
-  };
-
-  // Reset form when modal closes and fetch organizations when modal opens
   useEffect(() => {
-    if (!isOpen) {
-      setName("");
-      setVoiceId(undefined);
-      setPrompt("");
-      setFirstMessage("");
-      setValidationErrors({});
-    } else {
-      fetchUserOrgs();
-      
-      // If organizations are provided via props, use those instead
-      if (organizations && organizations.length > 0) {
-        setUserOrgs(organizations);
-        setOrgId(organizations[0].id);
+    const fetchVoices = async () => {
+      try {
+        const availableVoices = await getVoices();
+        setVoices(availableVoices);
+      } catch (error) {
+        console.error("Failed to fetch voices:", error);
+        toast.error("Failed to load voices. Please try again.");
       }
-    }
-  }, [isOpen, organizations]);
+    };
 
-  const { data: voices, isLoading: isLoadingVoices, error: voicesError } = useQuery({
-    queryKey: ['voices'],
-    queryFn: getVoices,
-    retry: 3,
-    enabled: isOpen, // Only fetch voices when modal is open
-  });
+    fetchVoices();
+  }, []);
 
-  // Handle errors and empty data with effect hooks to properly set useDefaultVoices
-  useEffect(() => {
-    if (voicesError) {
-      console.error("Error fetching voices, using predefined list");
-      setUseDefaultVoices(true);
-    } else if (voices && voices.length === 0) {
-      console.error("Empty voice response, using predefined list");
-      setUseDefaultVoices(true);
-    } else {
-      setUseDefaultVoices(false);
-    }
-  }, [voicesError, voices]);
-
-  const createAgentMutation = useMutation({
-    mutationFn: createAgent,
-    onSuccess: () => {
-      toast.success("Agent created successfully!");
-      onClose();
-      // Form is reset when modal closes due to the useEffect above
-    },
-    onError: (error: any) => {
-      console.error("Failed to create agent:", error);
-      toast.error(error.message || "Failed to create agent");
+  // Use react-hook-form with Zod for form validation
+  const { register, handleSubmit, formState: { errors }, setValue, control } = useForm<CreateAgentFormValues>({
+    resolver: zodResolver(createAgentFormSchema),
+    defaultValues: {
+      name: "",
+      voice: "",
+      prompt: "",
+      firstMessage: "",
     },
   });
 
-  // Validation function
-  const validateForm = () => {
-    const errors: Record<string, boolean> = {};
-    
-    if (!name.trim()) errors.name = true;
-    if (!voiceId) errors.voiceId = true;
-    if (!prompt.trim()) errors.prompt = true;
-    if (!firstMessage.trim()) errors.firstMessage = true;
-    
-    setValidationErrors(errors);
-    
-    // Form is valid if there are no errors
-    return Object.keys(errors).length === 0;
+  const handleSubmitWrapper: SubmitHandler<CreateAgentFormValues> = async (values) => {
+    await handleSubmit(values);
   };
 
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate the form
-    const isValid = validateForm();
-    
-    if (!isValid) {
-      const missingFields = Object.keys(validationErrors)
-        .map(field => {
-          switch (field) {
-            case 'name': return 'Agent Name';
-            case 'voiceId': return 'Voice';
-            case 'prompt': return 'Agent Prompt';
-            case 'firstMessage': return 'First Message';
-            default: return field;
-          }
-        }).join(', ');
-      
-      toast.error(`Please fill in all required fields: ${missingFields}`);
-      return;
-    }
-    
+  const onSubmit: SubmitHandler<CreateAgentFormValues> = async (values) => {
     try {
-      // Create agent with updated structure for VAPI API
-      createAgentMutation.mutate({
-        name,
+      setIsSubmitting(true);
+      
+      // Add the organization ID to the request
+      await createAgent({
+        name: values.name,
         model: {
           provider: "openai",
-          model: "gpt-4-turbo",
+          model: "gpt-4",
           messages: [
             {
               role: "system",
-              content: prompt
+              content: values.prompt
             }
           ]
         },
         voice: {
-          provider: "11labs",
-          voiceId: voiceId || ""
+          provider: "openai",
+          voiceId: values.voice
         },
-        firstMessage,
-        org_id: orgId
+        firstMessage: values.firstMessage,
+        org_id: orgId // Use the provided orgId
       });
+      
+      onClose();
+      toast.success("Agent created successfully!");
     } catch (error) {
-      console.error("Error in create agent submission:", error);
+      console.error("Failed to create agent:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to create agent");
+    } finally {
+      setIsSubmitting(false);
     }
   };
-
-  const handleVoiceSelect = (value: string) => {
-    setVoiceId(value);
-    // Clear validation error for voiceId when selected
-    if (validationErrors.voiceId) {
-      setValidationErrors(prev => {
-        const updated = { ...prev };
-        delete updated.voiceId;
-        return updated;
-      });
-    }
-  };
-
-  // Determine which voice list to use
-  const voicesToDisplay = useDefaultVoices || voicesError || !voices || voices.length === 0 
-    ? predefinedVoices 
-    : voices;
-
-  // Show loading state when loading voices or organizations
-  if (isLoadingVoices || isLoadingOrgs) {
-    return (
-      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Create New Agent</DialogTitle>
-          </DialogHeader>
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin mr-2 h-6 w-6 border-b-2 border-gray-500 rounded-full"></div>
-            <p>Loading required data...</p>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open) onClose();
-    }}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Create New Agent</DialogTitle>
           <DialogDescription>
-            Create a new AI agent for your organization
+            Create a new agent to automate tasks and calls.
           </DialogDescription>
         </DialogHeader>
-        
-        {useDefaultVoices && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Unable to fetch voices from API. Using predefined voice list instead.
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        <form onSubmit={handleSubmit} className="space-y-6 py-4">
+        <form onSubmit={handleSubmitWrapper(onSubmit)} className="grid gap-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="name">Agent Name</Label>
             <Input
               id="name"
               placeholder="Enter agent name"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                // Clear validation error when typing
-                if (validationErrors.name) {
-                  setValidationErrors(prev => {
-                    const updated = { ...prev };
-                    delete updated.name;
-                    return updated;
-                  });
-                }
-              }}
-              className={validationErrors.name ? "border-red-500" : ""}
-              disabled={createAgentMutation.isPending}
+              type="text"
+              {...register("name")}
             />
-            {validationErrors.name && (
-              <p className="text-sm text-red-500">Agent name is required</p>
+            {errors.name && (
+              <p className="text-sm text-red-500">{errors.name.message}</p>
             )}
           </div>
-          
-          {/* Organization selection */}
-          {userOrgs.length > 0 && (
-            <div className="grid gap-2">
-              <Label>Organization</Label>
-              <div className="flex items-center gap-2 h-10 px-3 border rounded-md bg-muted/20">
-                <Building className="h-4 w-4 text-muted-foreground" />
-                <span>{userOrgs[0].name}</span>
-                {userOrgs[0].isDefault && <Badge variant="outline" className="ml-2">Default</Badge>}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Using your organization: {userOrgs[0].name}
-              </p>
-            </div>
-          )}
-
           <div className="grid gap-2">
             <Label htmlFor="voice">Voice</Label>
-            <Select 
-              onValueChange={handleVoiceSelect} 
-              value={voiceId} 
-              disabled={createAgentMutation.isPending}
-            >
-              <SelectTrigger className={`flex items-center gap-2 ${validationErrors.voiceId ? "border-red-500" : ""}`}>
+            <Select onValueChange={(value) => setValue("voice", value)} control={control}>
+              <SelectTrigger>
                 <SelectValue placeholder="Select a voice" />
               </SelectTrigger>
               <SelectContent>
-                <SelectGroup>
-                  {voicesToDisplay.map((voice) => (
-                    <SelectItem key={voice.voice_id} value={voice.voice_id}>
-                      {voice.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
+                {voices.map((voice) => (
+                  <SelectItem key={voice.id} value={voice.id}>
+                    {voice.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            {validationErrors.voiceId && (
-              <p className="text-sm text-red-500">Voice is required</p>
+            {errors.voice && (
+              <p className="text-sm text-red-500">{errors.voice.message}</p>
             )}
           </div>
-
           <div className="grid gap-2">
-            <Label htmlFor="prompt">Agent Prompt</Label>
-            <Input
+            <Label htmlFor="prompt">Prompt</Label>
+            <Textarea
               id="prompt"
-              placeholder="Enter agent prompt"
-              value={prompt}
-              onChange={(e) => {
-                setPrompt(e.target.value);
-                if (validationErrors.prompt) {
-                  setValidationErrors(prev => {
-                    const updated = { ...prev };
-                    delete updated.prompt;
-                    return updated;
-                  });
-                }
-              }}
-              className={validationErrors.prompt ? "border-red-500" : ""}
-              disabled={createAgentMutation.isPending}
+              placeholder="Enter prompt"
+              className="resize-none"
+              {...register("prompt")}
             />
-            {validationErrors.prompt && (
-              <p className="text-sm text-red-500">Agent prompt is required</p>
+            {errors.prompt && (
+              <p className="text-sm text-red-500">{errors.prompt.message}</p>
             )}
           </div>
-
           <div className="grid gap-2">
-            <Label htmlFor="firstMessage">First Message</Label>
+            <Label htmlFor="firstMessage">First Message (Optional)</Label>
             <Input
               id="firstMessage"
               placeholder="Enter first message"
-              value={firstMessage}
-              onChange={(e) => {
-                setFirstMessage(e.target.value);
-                if (validationErrors.firstMessage) {
-                  setValidationErrors(prev => {
-                    const updated = { ...prev };
-                    delete updated.firstMessage;
-                    return updated;
-                  });
-                }
-              }}
-              className={validationErrors.firstMessage ? "border-red-500" : ""}
-              disabled={createAgentMutation.isPending}
+              type="text"
+              {...register("firstMessage")}
             />
-            {validationErrors.firstMessage && (
-              <p className="text-sm text-red-500">First message is required</p>
+            {errors.firstMessage && (
+              <p className="text-sm text-red-500">{errors.firstMessage.message}</p>
             )}
           </div>
-
-          <Button 
-            type="submit" 
-            className="w-full" 
-            disabled={createAgentMutation.isPending}
-          >
-            {createAgentMutation.isPending ? (
-              <div className="flex items-center">
-                <div className="animate-spin mr-2 h-4 w-4 border-b-2 border-white rounded-full"></div>
-                <span>Creating...</span>
-              </div>
-            ) : (
-              "Create Agent"
-            )}
-          </Button>
+          <DialogFooter>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  Creating <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                </>
+              ) : (
+                "Create Agent"
+              )}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

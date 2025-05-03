@@ -23,10 +23,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAgents, deleteAgent } from "@/services/vapiService";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 const AgentsList: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { currentOrganization } = useOrganization();
   
   // Fetch agents data with better error handling
   const { 
@@ -35,10 +37,11 @@ const AgentsList: React.FC = () => {
     error,
     refetch
   } = useQuery({
-    queryKey: ["agents"],
-    queryFn: getAgents,
+    queryKey: ["agents", currentOrganization?.id],
+    queryFn: () => getAgents(currentOrganization?.id),
     retry: 1,
     staleTime: 30000, // 30 seconds
+    enabled: !!currentOrganization?.id,
     meta: {
       onError: (err: Error) => {
         console.error('Error fetching agents:', err);
@@ -55,7 +58,7 @@ const AgentsList: React.FC = () => {
   const deleteAgentMutation = useMutation({
     mutationFn: deleteAgent,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agents"] });
+      queryClient.invalidateQueries({ queryKey: ["agents", currentOrganization?.id] });
       toast.success("Agent deleted successfully!");
     },
     onError: (error) => {
@@ -70,6 +73,22 @@ const AgentsList: React.FC = () => {
       deleteAgentMutation.mutate(agentId);
     }
   };
+
+  // If no organization is selected yet
+  if (!currentOrganization) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Agents</CardTitle>
+        </CardHeader>
+        <CardContent className="flex justify-center py-10">
+          <div className="text-center">
+            <p className="text-muted-foreground">Loading organization data...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
   
   // Render loading state
   if (isLoading) {
@@ -242,8 +261,9 @@ const AgentsList: React.FC = () => {
         onClose={() => {
           setIsCreateModalOpen(false);
           // Refresh agents list after creating a new agent
-          queryClient.invalidateQueries({ queryKey: ["agents"] });
+          queryClient.invalidateQueries({ queryKey: ["agents", currentOrganization?.id] });
         }}
+        orgId={currentOrganization.id}
       />
     </>
   );

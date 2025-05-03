@@ -11,6 +11,7 @@ import Calls from "./pages/Calls";
 import AgentsList from "./components/Dashboard/AgentsList";
 import AuthPage from "./pages/AuthPage";
 import { AuthProvider } from "./contexts/AuthContext";
+import { OrganizationProvider } from "./contexts/OrganizationContext";
 import ProtectedRoute from "./components/Auth/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -28,7 +29,11 @@ const App = () => (
             
             {/* Protected dashboard routes */}
             <Route element={<ProtectedRoute />}>
-              <Route element={<DashboardLayout />}>
+              <Route element={
+                <OrganizationProvider>
+                  <DashboardLayout />
+                </OrganizationProvider>
+              }>
                 <Route path="/" element={<CallsOverview />} />
                 <Route path="/calls" element={<Calls />} />
                 <Route path="/agents" element={<AgentsList />} />

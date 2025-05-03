@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -111,9 +110,14 @@ const getVapiAgentDetails = async (agentId: string): Promise<any> => {
 };
 
 // Agent related API calls with better error handling
-export const getAgents = async (): Promise<Agent[]> => {
+export const getAgents = async (orgId?: string): Promise<Agent[]> => {
   try {
-    console.log("Fetching agents from Supabase database");
+    console.log("Fetching agents from Supabase database for organization:", orgId);
+    
+    if (!orgId) {
+      console.warn("No organization ID provided");
+      return [];
+    }
     
     // Get user info
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -129,36 +133,16 @@ export const getAgents = async (): Promise<Agent[]> => {
     
     console.log("Current authenticated user:", user.id);
     
-    // Use the RPC function to get the user's organizations
-    console.log("Fetching user's organizations using RPC function");
-    const { data: orgMembers, error: membersError } = await supabase
-      .rpc('get_user_org_memberships', { user_id_param: user.id });
+    // Query agents directly using the provided organization ID
+    console.log("Querying agents for org ID:", orgId);
     
-    if (membersError) {
-      console.error("Failed to fetch user's organizations:", membersError);
-      throw membersError;
-    }
-    
-    if (!orgMembers || orgMembers.length === 0) {
-      console.warn("No organizations found for the user");
-      return []; // Return empty array instead of throwing an error
-    }
-    
-    console.log("User's organizations:", orgMembers);
-    
-    // Get all agents for organizations the user is a member of
-    const orgIds = orgMembers.map(org => org.org_id);
-    
-    console.log("Querying agents for org IDs:", orgIds);
-    
-    // Query agents using IN condition with org IDs
     const { data: agents, error } = await supabase
       .from('agents')
       .select(`
         *,
         orgs (name)
       `)
-      .in('org_id', orgIds);
+      .eq('org_id', orgId);
     
     if (error) {
       console.error("Failed to fetch agents:", error);
@@ -239,32 +223,8 @@ export const createAgent = async (agentData: AgentCreateParams): Promise<Agent |
     // Use the provided org_id or get the default one
     let orgId = agentData.org_id;
     if (!orgId) {
-      console.log("No org_id provided, looking for user's default organization");
-      
-      // Get the first organization the user is a member of
-      const { data: orgMembers, error: memberError } = await supabase
-        .from('org_members')
-        .select('org_id, is_default')
-        .eq('user_id', authData.user.id)
-        .order('is_default', { ascending: false })
-        .limit(1);
-      
-      if (memberError) {
-        console.error("Error fetching org memberships:", memberError);
-        throw new Error(`Failed to find organization memberships: ${memberError.message}`);
-      }
-      
-      if (!orgMembers || orgMembers.length === 0) {
-        console.error("No organization memberships found for user");
-        throw new Error("No organizations found for your account. Please create an organization first.");
-      }
-      
-      orgId = orgMembers[0].org_id;
-      console.log("Using organization with ID:", orgId);
-    }
-    
-    if (!orgId) {
-      throw new Error("Could not determine organization ID");
+      console.error("No organization ID provided");
+      throw new Error("No organization ID provided. Please specify an organization.");
     }
     
     // Create agent in VAPI
@@ -509,75 +469,8 @@ export const getVoices = async () => {
   }
 };
 
-// Get current user's organizations using the security definer function
-export const getUserOrganizations = async () => {
-  try {
-    console.log("Fetching user organizations");
-    
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError) {
-      throw authError;
-    }
-    
-    if (!user) {
-      console.warn("No authenticated user found");
-      return [];
-    }
-    
-    console.log("Calling get_user_org_memberships function for user:", user.id);
-    // Use the security definer function to get org memberships
-    const { data: orgMembers, error: membersError } = await supabase
-      .rpc('get_user_org_memberships', { user_id_param: user.id });
-    
-    if (membersError) {
-      console.error("Failed to fetch user's organizations:", membersError);
-      throw membersError;
-    }
-    
-    console.log("Organization memberships response:", orgMembers);
-    
-    if (!orgMembers || orgMembers.length === 0) {
-      console.warn("No organization memberships found");
-      return [];
-    }
-    
-    // Get the full organization details
-    const orgIds = orgMembers.map(member => member.org_id);
-    
-    console.log("Fetching full details for org IDs:", orgIds);
-    
-    const { data: orgs, error: orgsError } = await supabase
-      .from('orgs')
-      .select('*')
-      .in('id', orgIds);
-      
-    if (orgsError) {
-      console.error("Failed to fetch organizations:", orgsError);
-      throw orgsError;
-    }
-    
-    console.log("Organizations fetched:", orgs?.length || 0);
-    
-    if (!orgs || orgs.length === 0) {
-      return [];
-    }
-    
-    // Combine org data with membership data
-    const result = orgs.map(org => {
-      const membership = orgMembers.find(member => member.org_id === org.id);
-      return {
-        ...org,
-        isDefault: membership?.is_default || false
-      };
-    });
-    
-    console.log("Final processed organizations:", result.length);
-    return result;
-  } catch (error) {
-    console.error("Failed to fetch organizations:", error);
-    throw error;
-  }
-};
+// We can remove getUserOrganizations since we now use OrganizationContext
+// export const getUserOrganizations = async () => { ... }
 
 // New function to create an organization
 export const createOrganization = async (name: string) => {
