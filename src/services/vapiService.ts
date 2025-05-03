@@ -1,6 +1,5 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 
 interface CreateAgentParams {
   name: string;
@@ -43,32 +42,51 @@ export const getAgentById = async (id: string) => {
 
 // Function to create a new agent
 export const createAgent = async ({ name, voiceId, prompt, provider, model }: CreateAgentParams) => {
-  // Get the current user's organization ID
-  const auth = useAuth();
-  const orgId = auth.orgId;
-
-  if (!orgId) {
-    throw new Error('User organization not found');
-  }
-
-  const { data, error } = await supabase
-    .from('agents')
-    .insert({
-      name,
-      voice_id: voiceId,
-      prompt,
-      status: 'active',
-      org_id: orgId,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error creating agent:', error);
+  // Get the current user's organization ID from the context
+  try {
+    const { data: user } = await supabase.auth.getUser();
+    
+    if (!user || !user.user) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Get the org_id from the user's metadata or another appropriate source
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('org_id')
+      .eq('id', user.user.id)
+      .single();
+    
+    if (userError || !userData || !userData.org_id) {
+      throw new Error('User organization not found');
+    }
+    
+    const orgId = userData.org_id;
+    
+    const { data, error } = await supabase
+      .from('agents')
+      .insert({
+        name,
+        voice_id: voiceId,
+        prompt,
+        status: 'active',
+        org_id: orgId,
+        provider: provider,
+        model: model
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error creating agent:', error);
+      throw new Error(error.message);
+    }
+    
+    return data;
+  } catch (error: any) {
+    console.error('Error in createAgent:', error);
     throw new Error(error.message);
   }
-
-  return data;
 };
 
 // Function to update an agent
@@ -106,4 +124,21 @@ export const deleteAgent = async (id: string) => {
   }
 
   return true;
+};
+
+// Dummy function for getCalls - add real implementation as needed
+export const getCalls = async () => {
+  // This is a placeholder - you should implement the actual functionality
+  return [];
+};
+
+// Dummy function for getCallStatistics - add real implementation as needed
+export const getCallStatistics = async () => {
+  // This is a placeholder - you should implement the actual functionality
+  return {
+    totalCalls: 0,
+    averageDuration: 0,
+    successRate: 0,
+    callsPerDay: []
+  };
 };

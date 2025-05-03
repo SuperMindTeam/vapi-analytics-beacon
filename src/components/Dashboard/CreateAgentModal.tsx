@@ -1,12 +1,13 @@
 
 import React, { useState } from "react";
-import { Modal } from "../ui/modal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"; // Using Dialog from shadcn instead of Modal
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { createAgent } from "@/services/vapiService";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CreateAgentModalProps {
   open: boolean;
@@ -14,6 +15,7 @@ interface CreateAgentModalProps {
 }
 
 const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ open, onClose }) => {
+  const { orgId } = useAuth();
   const [name, setName] = useState("");
   const [voiceId, setVoiceId] = useState("echo");
   const [prompt, setPrompt] = useState("");
@@ -54,59 +56,64 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ open, onClose }) =>
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Create New Agent">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">Agent Name</Label>
-          <Input
-            id="name"
-            placeholder="Enter a name for your agent"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-        </div>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create New Agent</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Agent Name</Label>
+            <Input
+              id="name"
+              placeholder="Enter a name for your agent"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="voiceId">Voice</Label>
-          <select
-            id="voiceId"
-            className="w-full border border-gray-300 rounded-md h-10 px-3"
-            value={voiceId}
-            onChange={(e) => setVoiceId(e.target.value)}
-            required
-          >
-            <option value="echo">Echo</option>
-            <option value="alloy">Alloy</option>
-            <option value="fable">Fable</option>
-            <option value="onyx">Onyx</option>
-            <option value="nova">Nova</option>
-            <option value="shimmer">Shimmer</option>
-          </select>
-        </div>
+          <div className="space-y-2">
+            <Label htmlFor="voiceId">Voice</Label>
+            <select
+              id="voiceId"
+              className="w-full border border-gray-300 rounded-md h-10 px-3"
+              value={voiceId}
+              onChange={(e) => setVoiceId(e.target.value)}
+              required
+            >
+              <option value="echo">Echo</option>
+              <option value="alloy">Alloy</option>
+              <option value="fable">Fable</option>
+              <option value="onyx">Onyx</option>
+              <option value="nova">Nova</option>
+              <option value="shimmer">Shimmer</option>
+            </select>
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="prompt">Agent Prompt</Label>
-          <Textarea
-            id="prompt"
-            placeholder="What should your agent say on calls?"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            rows={5}
-            required
-          />
-        </div>
+          <div className="space-y-2">
+            <Label htmlFor="prompt">Agent Prompt</Label>
+            <Textarea
+              id="prompt"
+              placeholder="What should your agent say on calls?"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              rows={5}
+              required
+            />
+          </div>
 
-        <div className="flex justify-end space-x-2 pt-4">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Creating..." : "Create Agent"}
-          </Button>
-        </div>
-      </form>
-    </Modal>
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Agent"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 };
 
