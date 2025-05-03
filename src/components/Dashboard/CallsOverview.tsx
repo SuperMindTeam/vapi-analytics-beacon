@@ -73,7 +73,7 @@ const CallsOverview: React.FC = () => {
         }
         
         // Fetch calls data for chart
-        const calls = await getCalls(100);
+        const calls = await getCalls();
         console.log("Calls data received:", calls);
         
         if (!Array.isArray(calls)) {
@@ -88,11 +88,11 @@ const CallsOverview: React.FC = () => {
         
         // Set statistics from API response
         setCallStats({
-          totalCalls: stats.total,
-          completedCalls: stats.completed,
-          avgDuration: stats.average_duration,
+          totalCalls: stats.totalCalls,
+          completedCalls: stats.completedCalls,
+          avgDuration: stats.averageDuration,
           callsChange: calculateCallsChange(calls),
-          timePeriod: stats.time_period
+          timePeriod: stats.timePeriod
         });
       } catch (error) {
         console.error("Error fetching dashboard data:", error);

@@ -50,18 +50,18 @@ export const createAgent = async ({ name, voiceId, prompt, provider, model }: Cr
       throw new Error('User not authenticated');
     }
     
-    // Get the org_id from the user's metadata or another appropriate source
-    const { data: userData, error: userError } = await supabase
-      .from('users')
+    // Get the org_id from the user's metadata or from org_members table
+    const { data: orgMemberships, error: membershipError } = await supabase
+      .from('org_members')
       .select('org_id')
-      .eq('id', user.user.id)
+      .eq('user_id', user.user.id)
       .single();
     
-    if (userError || !userData || !userData.org_id) {
+    if (membershipError || !orgMemberships) {
       throw new Error('User organization not found');
     }
     
-    const orgId = userData.org_id;
+    const orgId = orgMemberships.org_id;
     
     const { data, error } = await supabase
       .from('agents')
@@ -126,19 +126,24 @@ export const deleteAgent = async (id: string) => {
   return true;
 };
 
-// Dummy function for getCalls - add real implementation as needed
+// Function for getCalls - definition that matches how it's being called
 export const getCalls = async () => {
-  // This is a placeholder - you should implement the actual functionality
+  // This is a placeholder implementation
   return [];
 };
 
-// Dummy function for getCallStatistics - add real implementation as needed
+// Dummy function for getCallStatistics - adjusted to match expected return structure
 export const getCallStatistics = async () => {
-  // This is a placeholder - you should implement the actual functionality
+  // This is a placeholder implementation
   return {
     totalCalls: 0,
+    completedCalls: 0,
     averageDuration: 0,
     successRate: 0,
-    callsPerDay: []
+    callsPerDay: [],
+    timePeriod: {
+      start: new Date(),
+      end: new Date()
+    }
   };
 };

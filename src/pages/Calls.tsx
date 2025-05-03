@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getCalls } from '@/services/vapiService';
@@ -30,7 +29,7 @@ const Calls: React.FC = () => {
     const fetchCalls = async () => {
       try {
         setLoading(true);
-        const callsData = await getCalls(100);
+        const callsData = await getCalls();
         if (Array.isArray(callsData)) {
           setCalls(callsData);
         } else {
