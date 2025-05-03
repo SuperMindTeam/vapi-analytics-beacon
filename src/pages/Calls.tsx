@@ -2,16 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { getCalls } from '@/services/vapiService';
 import { format } from 'date-fns';
-import { Phone, Clock, User, MessageSquare, Check, AlertTriangle } from 'lucide-react';
+import { Phone, Clock, User, MessageSquare, Check, AlertTriangle, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
 
 interface Message {
   role: string;
   content: string;
   timestamp: string;
+  time?: number;
+  message?: string;
 }
 
 interface Call {
@@ -27,6 +30,9 @@ interface Call {
   };
   endedReason?: string;
   messages?: Message[];
+  transcript?: string;
+  recordingUrl?: string;
+  summary?: string;
   previewMessage?: string;
   agentName?: string; // Added agent name property
 }
@@ -47,13 +53,40 @@ const Calls: React.FC = () => {
         
         if (Array.isArray(callsData)) {
           // Process calls data to include real messages and agent names
-          const enhancedCalls = callsData.map(call => ({
-            ...call,
-            // Use real messages if they exist, otherwise provide mock messages for demo
-            messages: call.messages || generateMessagesForCall(call.id),
-            previewMessage: call.previewMessage || getFirstCustomerMessage(call.messages) || "No message content",
-            agentName: getAgentName(call.assistantId) // Get agent name based on assistantId
-          }));
+          const enhancedCalls = callsData.map(call => {
+            // Check if call has a real transcript
+            const hasRealTranscript = !!call.transcript;
+            
+            // Process call messages
+            let parsedMessages: Message[] = [];
+            
+            if (hasRealTranscript && call.transcript) {
+              // If we have a transcript, parse it into messages
+              parsedMessages = parseTranscriptToMessages(call.transcript);
+            } else if (call.messages && call.messages.length > 0) {
+              // If the API returned messages directly, use those
+              parsedMessages = call.messages;
+            } else if (call.status === 'ended' && call.endedReason?.includes('error')) {
+              // If the call failed, we'll show an error message
+              parsedMessages = [
+                {
+                  role: 'system',
+                  content: `Call failed: ${formatEndedReason(call.endedReason)}`,
+                  timestamp: call.updatedAt || call.createdAt
+                }
+              ];
+            } else {
+              // Otherwise use mock messages for demo purposes
+              parsedMessages = generateMessagesForCall(call.id);
+            }
+            
+            return {
+              ...call,
+              messages: parsedMessages,
+              previewMessage: getPreviewMessage(call, parsedMessages),
+              agentName: getAgentName(call.assistantId)
+            };
+          });
           
           setCalls(enhancedCalls);
           // Select the first call by default if available
@@ -74,12 +107,89 @@ const Calls: React.FC = () => {
 
     fetchCalls();
   }, []);
+  
+  // Parse transcript string into message objects
+  const parseTranscriptToMessages = (transcript: string): Message[] => {
+    try {
+      if (!transcript) return [];
+      
+      // Split the transcript by new lines
+      const lines = transcript.split('\n').filter(line => line.trim() !== '');
+      const messages: Message[] = [];
+      
+      lines.forEach(line => {
+        // Check if line starts with AI: or User: (common transcript format)
+        const aiMatch = line.match(/^AI: (.*)/);
+        const userMatch = line.match(/^User: (.*)/);
+        
+        if (aiMatch) {
+          messages.push({
+            role: 'ai',
+            content: aiMatch[1],
+            timestamp: new Date().toISOString() // Approximation as transcript doesn't have timestamps
+          });
+        } else if (userMatch) {
+          messages.push({
+            role: 'customer',
+            content: userMatch[1],
+            timestamp: new Date().toISOString()
+          });
+        } else {
+          // If line doesn't match expected format, try to determine role based on context
+          // Default to system message if can't determine
+          messages.push({
+            role: 'system',
+            content: line,
+            timestamp: new Date().toISOString()
+          });
+        }
+      });
+      
+      return messages;
+    } catch (e) {
+      console.error('Error parsing transcript:', e);
+      return [];
+    }
+  };
+  
+  // Format ended reason to be more user-friendly
+  const formatEndedReason = (reason?: string): string => {
+    if (!reason) return 'Unknown reason';
+    
+    // Remove technical prefixes
+    const cleanReason = reason.replace('call.in-progress.error-', '')
+      .replace('call.in-progress.', '')
+      .replace('-', ' ');
+    
+    // Capitalize and improve readability
+    return cleanReason.split('-').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+  };
 
-  // Helper function to get the first customer message as preview
-  const getFirstCustomerMessage = (messages?: Message[]): string | undefined => {
-    if (!messages || messages.length === 0) return undefined;
-    const firstCustomerMessage = messages.find(msg => msg.role.toLowerCase() === 'customer' || msg.role.toLowerCase() === 'user');
-    return firstCustomerMessage?.content;
+  // Get preview message for call list
+  const getPreviewMessage = (call: Call, messages: Message[]): string => {
+    // If call failed, show the failure reason
+    if (call.status === 'ended' && call.endedReason?.includes('error')) {
+      return `Call failed: ${formatEndedReason(call.endedReason)}`;
+    }
+    
+    // If we have a summary from the API, use it
+    if (call.summary) {
+      return call.summary;
+    }
+    
+    // Otherwise use the first customer message as preview
+    if (messages && messages.length > 0) {
+      const firstCustomerMessage = messages.find(msg => 
+        msg.role.toLowerCase() === 'customer' || msg.role.toLowerCase() === 'user'
+      );
+      if (firstCustomerMessage) {
+        return firstCustomerMessage.content;
+      }
+    }
+    
+    return call.previewMessage || "No message content";
   };
 
   // Helper function to get agent name - in a real app, this would fetch from your agents database
@@ -90,6 +200,7 @@ const Calls: React.FC = () => {
       'asst_123456': 'Restaurant Assistant',
       'asst_789012': 'Booking Agent',
       'asst_345678': 'Support Rep',
+      '37e86107-ef6b-4aa9-92a4-f5c90e3c8e40': 'Morgan',
       // Add more mappings as needed
     };
     
@@ -160,6 +271,11 @@ const Calls: React.FC = () => {
         return <Badge variant="secondary">In Progress</Badge>;
       case 'failed':
         return <Badge variant="destructive">Failed</Badge>;
+      case 'ended':
+        if (selectedCall?.endedReason?.includes('error')) {
+          return <Badge variant="destructive">Failed</Badge>;
+        }
+        return <Badge className="bg-green-500">Completed</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -170,7 +286,7 @@ const Calls: React.FC = () => {
     if (!newMessage.trim() || !selectedCall) return;
     
     // In a real app, we would send the message to the API here
-    console.log("Sending message:", newMessage);
+    toast.info("Message sending functionality is currently in demo mode");
     
     // For now, just add it to the UI
     const updatedCalls = calls.map(call => {
@@ -200,7 +316,10 @@ const Calls: React.FC = () => {
       case "unresolved":
         return calls.filter(call => call.status.toLowerCase() === 'in-progress');
       case "resolved":
-        return calls.filter(call => call.status.toLowerCase() === 'completed');
+        return calls.filter(call => 
+          call.status.toLowerCase() === 'completed' || 
+          (call.status.toLowerCase() === 'ended' && !call.endedReason?.includes('error'))
+        );
       case "autoresolved":
         return calls.filter(call => call.status.toLowerCase() === 'completed' && call.endedReason === 'auto_resolved');
       default:
@@ -289,6 +408,16 @@ const Calls: React.FC = () => {
                   <div className="text-sm text-gray-600 mt-1 truncate">
                     {call.previewMessage || "No message content"}
                   </div>
+                  <div className="flex justify-between items-center mt-1">
+                    <div className="text-xs text-gray-500">
+                      {call.agentName || 'AI Assistant'}
+                    </div>
+                    {call.endedReason?.includes('error') ? (
+                      <Badge variant="outline" className="text-red-500 border-red-200 text-xs">
+                        <X className="h-3 w-3 mr-1" /> Failed
+                      </Badge>
+                    ) : null}
+                  </div>
                 </div>
               ))
             ) : (
@@ -324,28 +453,53 @@ const Calls: React.FC = () => {
             
             {/* Conversation messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {selectedCall.messages?.map((message, index) => (
-                <div 
-                  key={index} 
-                  className={`flex ${message.role === 'ai' ? 'justify-start' : 'justify-end'}`}
-                >
-                  <div 
-                    className={`max-w-[70%] p-3 rounded-lg ${
-                      message.role === 'ai' 
-                        ? 'bg-gray-100 text-gray-800' 
-                        : 'bg-primary text-primary-foreground'
-                    }`}
-                  >
-                    <div className="text-sm">{message.content}</div>
-                    <div className="text-xs mt-1 opacity-70 text-right">
-                      {format(new Date(message.timestamp), 'h:mm a')}
-                      {message.role === 'ai' && (
-                        <span className="ml-1 text-xs">Sent by {selectedCall.agentName || 'AI'}</span>
-                      )}
-                    </div>
-                  </div>
+              {selectedCall.status === 'ended' && selectedCall.endedReason?.includes('error') && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-center text-red-700 text-sm my-2">
+                  <AlertTriangle className="h-4 w-4 mr-2 flex-shrink-0" />
+                  <p>This call failed: {formatEndedReason(selectedCall.endedReason)}</p>
                 </div>
-              ))}
+              )}
+              
+              {selectedCall.messages && selectedCall.messages.length > 0 ? (
+                selectedCall.messages.map((message, index) => {
+                  // Skip system messages unless they are error messages
+                  if (message.role === 'system' && !message.content.includes('failed') && !message.content.includes('error')) {
+                    return null;
+                  }
+                  
+                  return (
+                    <div 
+                      key={index} 
+                      className={`flex ${message.role === 'ai' || message.role === 'agent' ? 'justify-start' : 'justify-end'}`}
+                    >
+                      <div 
+                        className={`max-w-[70%] p-3 rounded-lg ${
+                          message.role === 'ai' || message.role === 'agent'
+                            ? 'bg-gray-100 text-gray-800' 
+                            : message.role === 'system'
+                              ? 'bg-red-50 text-red-700 border border-red-200'
+                              : 'bg-primary text-primary-foreground'
+                        }`}
+                      >
+                        <div className="text-sm">{message.content}</div>
+                        <div className="text-xs mt-1 opacity-70 text-right">
+                          {message.timestamp && format(new Date(message.timestamp), 'h:mm a')}
+                          {(message.role === 'ai' || message.role === 'agent') && (
+                            <span className="ml-1 text-xs">Sent by {selectedCall.agentName || 'AI'}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center p-6 text-gray-500">
+                  {selectedCall.endedReason?.includes('error') 
+                    ? `No transcript available. Call failed: ${formatEndedReason(selectedCall.endedReason)}`
+                    : "No transcript available for this call"
+                  }
+                </div>
+              )}
             </div>
             
             {/* Message input */}
