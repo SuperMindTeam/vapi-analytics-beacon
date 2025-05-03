@@ -42,8 +42,8 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ open, onClose }) =>
         name, 
         voiceId, 
         prompt,
-        provider: "openai", // Adding the required provider field
-        model: "gpt-3.5-turbo", // Adding the required model field
+        provider: "openai", // Adding the required provider field for VAPI API
+        model: "gpt-3.5-turbo", // Adding the required model field for VAPI API
       });
       toast.success("Agent created successfully!");
       resetForm();

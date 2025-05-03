@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -113,7 +112,7 @@ export const createAgent = async ({ name, voiceId, prompt, provider, model }: Cr
     console.log("VAPI agent created:", vapiAgent);
     
     // Now, store the agent details in our database
-    // Using the VAPI agent ID as our agent ID, and storing model and provider as separate columns
+    // Using the VAPI agent ID as our agent ID, but NOT storing model and provider
     const { data, error } = await supabase
       .from('agents')
       .insert({
@@ -124,8 +123,7 @@ export const createAgent = async ({ name, voiceId, prompt, provider, model }: Cr
         status: vapiAgent.status || 'active',
         phone_number: vapiAgent.phone_number,
         org_id: orgId,
-        provider, // Store provider directly
-        model, // Store model directly
+        // Removed provider and model fields
       })
       .select()
       .single();
@@ -186,8 +184,7 @@ export const updateAgent = async (id: string, updates: Partial<CreateAgentParams
       ...(updates.name && { name: updates.name }),
       ...(updates.voiceId && { voice_id: updates.voiceId }),
       ...(updates.prompt && { prompt: updates.prompt }),
-      ...(updates.provider && { provider: updates.provider }),
-      ...(updates.model && { model: updates.model }),
+      // Removed provider and model updates
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
