@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import {
   Dialog,
@@ -63,17 +64,22 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
     queryKey: ['voices'],
     queryFn: getVoices,
     retry: 3,
-    onError: () => {
+  });
+
+  // Handle errors and empty data with effect hooks to properly set useDefaultVoices
+  React.useEffect(() => {
+    if (voicesError) {
       console.error("Error fetching voices, using predefined list");
       setUseDefaultVoices(true);
-    },
-    onSuccess: (data) => {
-      if (!data || data.length === 0) {
-        console.error("Empty voice response, using predefined list");
-        setUseDefaultVoices(true);
-      }
     }
-  });
+  }, [voicesError]);
+
+  React.useEffect(() => {
+    if (voices && voices.length === 0) {
+      console.error("Empty voice response, using predefined list");
+      setUseDefaultVoices(true);
+    }
+  }, [voices]);
 
   const createAgentMutation = useMutation({
     mutationFn: createAgent,
