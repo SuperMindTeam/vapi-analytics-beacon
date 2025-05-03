@@ -23,28 +23,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
+  const [orgFetchAttempted, setOrgFetchAttempted] = useState(false);
   const navigate = useNavigate();
 
   // Function to fetch and set the user's organization ID
   const fetchUserOrg = async (userId: string) => {
-    if (!userId) {
-      console.log("No userId provided to fetchUserOrg");
-      setOrgId(null);
-      return;
-    }
+    if (!userId) return;
     
     try {
       console.log("Fetching organization for user:", userId);
+      setOrgFetchAttempted(true);
+      
       const { data, error } = await supabase
         .from('org_members')
         .select('org_id')
         .eq('user_id', userId)
         .eq('is_default', true)
-        .maybeSingle(); // Use maybeSingle instead of single to avoid error when no rows found
+        .single();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 is "No rows returned" error
+      if (error) {
         console.error("Error fetching user's organization:", error);
-        setOrgId(null);
+        // Even with an error, we don't want to keep the app in loading state
+        setLoading(false);
         return;
       }
 
@@ -57,74 +57,92 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error("Error in fetchUserOrg:", error);
-      setOrgId(null);
+    } finally {
+      // Always make sure to finish loading regardless of outcome
+      setLoading(false);
     }
   };
 
   // Handle initial session and setup auth state listener
   useEffect(() => {
-    // Set loading state immediately
-    setLoading(true);
+    let mounted = true;
     
-    // Set up auth state change listener first
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
-        console.log("Auth state changed:", event);
-        
-        setSession(currentSession);
-        
-        if (currentSession?.user) {
-          setUser(currentSession.user);
-          setUserId(currentSession.user.id);
-          
-          // Fetch org when auth state changes and we have a user
-          await fetchUserOrg(currentSession.user.id);
-        } else {
-          setUser(null);
-          setUserId(null);
-          setOrgId(null);
-        }
-        
-        // Set loading to false after processing auth change
-        setLoading(false);
-        
-        if (event === 'SIGNED_OUT') {
-          navigate('/auth');
-        } else if (event === 'SIGNED_IN') {
-          navigate('/');
-        }
-      }
-    );
-
-    // Then check for existing session
     const initializeAuth = async () => {
       try {
+        // First get the current session
         const { data: sessionData } = await supabase.auth.getSession();
         const currentSession = sessionData.session;
         
-        setSession(currentSession);
-        
-        if (currentSession?.user) {
-          setUser(currentSession.user);
-          setUserId(currentSession.user.id);
-          // Fetch organization after user is set
-          await fetchUserOrg(currentSession.user.id);
+        if (mounted) {
+          setSession(currentSession);
+          
+          if (currentSession?.user) {
+            setUser(currentSession.user);
+            setUserId(currentSession.user.id);
+            // Fetch organization after user is set
+            await fetchUserOrg(currentSession.user.id);
+          } else {
+            setLoading(false); // No user, so we're done loading
+          }
         }
       } catch (error) {
         console.error("Error initializing auth:", error);
-      } finally {
-        // Always set loading to false when initialization is complete
-        setLoading(false);
+        if (mounted) {
+          setLoading(false); // Error occurred, so we're done loading
+        }
       }
     };
 
     // Initialize auth state
     initializeAuth();
 
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, currentSession) => {
+        console.log("Auth state changed:", event);
+        
+        if (mounted) {
+          setSession(currentSession);
+          
+          if (currentSession?.user) {
+            setUser(currentSession.user);
+            setUserId(currentSession.user.id);
+            
+            // Fetch org when auth state changes and we have a user
+            await fetchUserOrg(currentSession.user.id);
+          } else {
+            setUser(null);
+            setUserId(null);
+            setOrgId(null);
+            setLoading(false); // No user, so we're done loading
+          }
+          
+          if (event === 'SIGNED_OUT') {
+            navigate('/auth');
+          } else if (event === 'SIGNED_IN') {
+            navigate('/');
+          }
+        }
+      }
+    );
+
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, [navigate]);
+
+  // Add a safety mechanism to prevent infinite loading
+  useEffect(() => {
+    const safetyTimeout = setTimeout(() => {
+      if (loading && user && !orgFetchAttempted) {
+        console.log("Safety timeout reached: forcing loading state to complete");
+        setLoading(false);
+      }
+    }, 5000); // 5 second safety timeout
+
+    return () => clearTimeout(safetyTimeout);
+  }, [loading, user, orgFetchAttempted]);
 
   const signIn = async (email: string, password: string) => {
     try {
