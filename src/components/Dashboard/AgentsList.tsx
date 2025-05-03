@@ -23,83 +23,22 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAgents, deleteAgent } from "@/services/vapiService";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { supabase } from "@/integrations/supabase/client";
 
 const AgentsList: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const queryClient = useQueryClient();
-  const [organizations, setOrganizations] = useState<any[]>([]);
-  
-  // Directly get user organizations from database using RPC call
-  const getUserOrganizations = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      
-      // Use the security definer function to get user's organizations
-      const { data, error } = await supabase.rpc('get_user_org_memberships', { 
-        user_id_param: user.id 
-      });
-      
-      if (error) {
-        console.error("Failed to fetch user's organizations:", error);
-        return [];
-      }
-      
-      if (!data || data.length === 0) return [];
-      
-      // Get the full organization details
-      const orgIds = data.map(org => org.org_id);
-      const { data: orgsData, error: orgsError } = await supabase
-        .from('orgs')
-        .select('*')
-        .in('id', orgIds);
-        
-      if (orgsError) {
-        console.error("Failed to fetch organizations:", orgsError);
-        return [];
-      }
-      
-      // Combine org data with membership data
-      const result = orgsData.map(org => {
-        const membership = data.find(m => m.org_id === org.id);
-        return {
-          ...org,
-          isDefault: membership?.is_default || false
-        };
-      });
-      
-      setOrganizations(result);
-      return result;
-    } catch (error) {
-      console.error("Error in getUserOrganizations:", error);
-      return [];
-    }
-  };
-
-  // Get organizations first
-  const { 
-    isLoading: orgLoading,
-    error: orgError 
-  } = useQuery({
-    queryKey: ["organizations_direct"],
-    queryFn: getUserOrganizations,
-    retry: 3,
-    staleTime: 60000, // Cache for 1 minute
-  });
   
   // Fetch agents data with proper error handling
   const { 
     data: agents, 
-    isLoading: agentsLoading, 
-    error: agentsError,
-    refetch: refetchAgents
+    isLoading, 
+    error,
+    refetch
   } = useQuery({
     queryKey: ["agents"],
     queryFn: getAgents,
     retry: 2,
     staleTime: 30000, // 30 seconds
-    enabled: !orgLoading, // Only fetch agents after orgs are loaded
   });
   
   // Delete agent mutation
@@ -121,17 +60,6 @@ const AgentsList: React.FC = () => {
     }
   };
   
-  // Get organization name by id with fallback
-  const getOrgName = (orgId: string) => {
-    if (!organizations || organizations.length === 0) return "Unknown";
-    const org = organizations.find(org => org.id === orgId);
-    return org ? org.name : "Unknown";
-  };
-  
-  // Check if there are any errors
-  const hasError = !!agentsError || !!orgError;
-  const isLoading = agentsLoading || orgLoading;
-  
   // Render loading state
   if (isLoading) {
     return (
@@ -150,10 +78,10 @@ const AgentsList: React.FC = () => {
   }
   
   // Render error state with detailed error message and retry button
-  if (hasError) {
-    const errorMessage = agentsError instanceof Error 
-      ? agentsError.message 
-      : (orgError instanceof Error ? orgError.message : 'Unknown error occurred');
+  if (error) {
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : 'Unknown error occurred';
       
     return (
       <Card>
@@ -167,10 +95,7 @@ const AgentsList: React.FC = () => {
             </AlertDescription>
           </Alert>
           <Button 
-            onClick={() => {
-              refetchAgents();
-              getUserOrganizations();
-            }}
+            onClick={() => refetch()}
             variant="outline"
             className="mt-4"
           >
@@ -229,7 +154,7 @@ const AgentsList: React.FC = () => {
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Building size={16} className="text-muted-foreground" />
-                        <span>{getOrgName(agent.org_id || '')}</span>
+                        <span>{agent.org_name || 'Unknown'}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -273,7 +198,7 @@ const AgentsList: React.FC = () => {
                 If you believe this is an error, please check your API key or connection.
               </p>
               <Button 
-                onClick={() => queryClient.refetchQueries({ queryKey: ["agents"] })}
+                onClick={() => refetch()}
                 variant="outline"
                 className="mt-4"
               >
@@ -291,7 +216,6 @@ const AgentsList: React.FC = () => {
           // Refresh agents list after creating a new agent
           queryClient.invalidateQueries({ queryKey: ["agents"] });
         }}
-        organizations={organizations}
       />
     </>
   );

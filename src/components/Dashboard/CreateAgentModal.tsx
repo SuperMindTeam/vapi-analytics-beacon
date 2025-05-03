@@ -62,23 +62,24 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
   const [userOrgs, setUserOrgs] = useState<any[]>([]);
   const [isLoadingOrgs, setIsLoadingOrgs] = useState(false);
 
-  // Directly get user organizations from database using RPC call
+  // Fetch organizations directly without using the security definer function
   const fetchUserOrgs = async () => {
     setIsLoadingOrgs(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No authenticated user found");
       
-      // Use the security definer function to get user's organizations
-      const { data, error } = await supabase.rpc('get_user_org_memberships', { 
-        user_id_param: user.id 
-      });
+      // Get organization memberships - RLS will filter to only this user's memberships
+      const { data: memberships, error: membershipError } = await supabase
+        .from('org_members')
+        .select('org_id, is_default')
+        .eq('user_id', user.id);
       
-      if (error) throw error;
+      if (membershipError) throw membershipError;
       
-      // Fetch organization details
-      if (data && data.length > 0) {
-        const orgIds = data.map(org => org.org_id);
+      // Fetch organization details 
+      if (memberships && memberships.length > 0) {
+        const orgIds = memberships.map(org => org.org_id);
         const { data: orgsData, error: orgsError } = await supabase
           .from('orgs')
           .select('*')
@@ -88,7 +89,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
         
         // Combine org data with membership data
         const orgsWithMembership = orgsData.map(org => {
-          const membership = data.find(m => m.org_id === org.id);
+          const membership = memberships.find(m => m.org_id === org.id);
           return {
             ...org,
             isDefault: membership?.is_default || false
@@ -103,6 +104,9 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
           setOrgId(defaultOrg ? defaultOrg.id : orgsWithMembership[0].id);
         }
       }
+      
+      console.log("Successfully fetched user organizations:", memberships);
+      
     } catch (error) {
       console.error("Error fetching organizations:", error);
       toast.error("Failed to load organizations");
@@ -134,6 +138,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
     queryKey: ['voices'],
     queryFn: getVoices,
     retry: 3,
+    enabled: isOpen, // Only fetch voices when modal is open
   });
 
   // Handle errors and empty data with effect hooks to properly set useDefaultVoices
@@ -162,7 +167,7 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
     },
   });
 
-  // Validation function that doesn't check for organization
+  // Validation function
   const validateForm = () => {
     const errors: Record<string, boolean> = {};
     
@@ -170,7 +175,6 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
     if (!voiceId) errors.voiceId = true;
     if (!prompt.trim()) errors.prompt = true;
     if (!firstMessage.trim()) errors.firstMessage = true;
-    if (!orgId) errors.orgId = true;
     
     setValidationErrors(errors);
     
@@ -193,7 +197,6 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
             case 'voiceId': return 'Voice';
             case 'prompt': return 'Agent Prompt';
             case 'firstMessage': return 'First Message';
-            case 'orgId': return 'Organization';
             default: return field;
           }
         }).join(', ');
@@ -202,9 +205,8 @@ const CreateAgentModal: React.FC<CreateAgentModalProps> = ({ isOpen, onClose, or
       return;
     }
     
-    // Create agent with updated structure for VAPI API
     try {
-      console.log("Creating agent with organization:", orgId);
+      // Create agent with updated structure for VAPI API
       createAgentMutation.mutate({
         name,
         model: {
