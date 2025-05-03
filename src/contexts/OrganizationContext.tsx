@@ -13,30 +13,12 @@ interface OrganizationContextType {
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
 
 export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const { userId, orgId } = useAuth(); // Access the userId and orgId from AuthContext
+  const [loading, setLoading] = useState(false); // Changed to false since we're not fetching anything
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    // Simple initialization for context, without org fetching
-    const initialize = async () => {
-      try {
-        if (!user) {
-          setLoading(false);
-          return;
-        }
-        
-        // Just finish loading
-        setLoading(false);
-      } catch (error) {
-        console.error("Error in OrganizationContext:", error);
-        setError(error instanceof Error ? error : new Error("Unknown error"));
-        setLoading(false);
-      }
-    };
-
-    initialize();
-  }, [user]);
+  // No need to fetch org information since we already have it from AuthContext
+  // This component is now mostly a placeholder that could be extended later if needed
 
   return (
     <OrganizationContext.Provider 
