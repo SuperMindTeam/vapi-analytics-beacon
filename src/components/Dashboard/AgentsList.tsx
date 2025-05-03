@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { 
   Card,
@@ -206,6 +207,7 @@ const AgentsList: React.FC = () => {
         </CardContent>
       </Card>
       
+      {/* Pass the required props to the CreateAgentModal component */}
       <CreateAgentModal 
         isOpen={isCreateModalOpen} 
         onClose={() => {
