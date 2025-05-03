@@ -4,8 +4,8 @@ import { toast } from "sonner";
 
 // VAPI API endpoint
 const VAPI_API_ENDPOINT = "https://api.vapi.ai/api/v1";
-// This should be replaced with a proper API key stored in Supabase secrets
-const VAPI_API_KEY = "YOUR_VAPI_API_KEY"; 
+// Using the VAPI API key provided
+const VAPI_API_KEY = "86a2dd3f-cb06-4544-85c5-cde554064763"; 
 
 interface CreateAgentParams {
   name: string;
@@ -101,9 +101,11 @@ export const createAgent = async ({ name, voiceId, prompt, provider, model }: Cr
     console.log("VAPI agent created:", vapiAgent);
     
     // Now, store the agent details in our database
+    // Using the VAPI agent ID as our agent ID
     const { data, error } = await supabase
       .from('agents')
       .insert({
+        id: vapiAgent.id, // Use VAPI agent ID directly
         name,
         voice_id: voiceId,
         prompt,
@@ -112,8 +114,6 @@ export const createAgent = async ({ name, voiceId, prompt, provider, model }: Cr
         org_id: orgId,
         provider: provider,
         model: model,
-        // Store the VAPI agent ID or other relevant data
-        vapi_agent_id: vapiAgent.id
       })
       .select()
       .single();
@@ -132,40 +132,26 @@ export const createAgent = async ({ name, voiceId, prompt, provider, model }: Cr
 
 // Function to update an agent
 export const updateAgent = async (id: string, updates: Partial<CreateAgentParams>) => {
-  // First, get the current agent details
-  const { data: currentAgent, error: fetchError } = await supabase
-    .from('agents')
-    .select('vapi_agent_id')
-    .eq('id', id)
-    .single();
+  // Update the agent in VAPI
+  console.log("Updating agent in VAPI...");
+  const vapiResponse = await fetch(`${VAPI_API_ENDPOINT}/agents/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${VAPI_API_KEY}`
+    },
+    body: JSON.stringify({
+      ...(updates.name && { name: updates.name }),
+      ...(updates.voiceId && { voice_id: updates.voiceId }),
+      ...(updates.prompt && { prompt: updates.prompt }),
+      // Add other VAPI update parameters here
+    })
+  });
 
-  if (fetchError) {
-    console.error(`Error fetching agent with id ${id}:`, fetchError);
-    throw new Error(fetchError.message);
-  }
-
-  // Update the agent in VAPI if we have a VAPI agent ID
-  if (currentAgent?.vapi_agent_id) {
-    console.log("Updating agent in VAPI...");
-    const vapiResponse = await fetch(`${VAPI_API_ENDPOINT}/agents/${currentAgent.vapi_agent_id}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${VAPI_API_KEY}`
-      },
-      body: JSON.stringify({
-        ...(updates.name && { name: updates.name }),
-        ...(updates.voiceId && { voice_id: updates.voiceId }),
-        ...(updates.prompt && { prompt: updates.prompt }),
-        // Add other VAPI update parameters here
-      })
-    });
-
-    if (!vapiResponse.ok) {
-      const errorData = await vapiResponse.json();
-      console.error("VAPI API Error:", errorData);
-      throw new Error(errorData.message || 'Failed to update agent in VAPI');
-    }
+  if (!vapiResponse.ok) {
+    const errorData = await vapiResponse.json();
+    console.error("VAPI API Error:", errorData);
+    throw new Error(errorData.message || 'Failed to update agent in VAPI');
   }
 
   // Update the agent in our database
@@ -193,33 +179,19 @@ export const updateAgent = async (id: string, updates: Partial<CreateAgentParams
 
 // Function to delete an agent
 export const deleteAgent = async (id: string) => {
-  // First, get the VAPI agent ID
-  const { data: agent, error: fetchError } = await supabase
-    .from('agents')
-    .select('vapi_agent_id')
-    .eq('id', id)
-    .single();
-
-  if (fetchError) {
-    console.error(`Error fetching agent with id ${id}:`, fetchError);
-    throw new Error(fetchError.message);
-  }
-
-  // Delete from VAPI if we have a VAPI agent ID
-  if (agent?.vapi_agent_id) {
-    console.log("Deleting agent from VAPI...");
-    const vapiResponse = await fetch(`${VAPI_API_ENDPOINT}/agents/${agent.vapi_agent_id}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${VAPI_API_KEY}`
-      }
-    });
-
-    if (!vapiResponse.ok) {
-      const errorData = await vapiResponse.json();
-      console.error("VAPI API Error:", errorData);
-      throw new Error(errorData.message || 'Failed to delete agent from VAPI');
+  // Delete from VAPI
+  console.log("Deleting agent from VAPI...");
+  const vapiResponse = await fetch(`${VAPI_API_ENDPOINT}/agents/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${VAPI_API_KEY}`
     }
+  });
+
+  if (!vapiResponse.ok) {
+    const errorData = await vapiResponse.json();
+    console.error("VAPI API Error:", errorData);
+    throw new Error(errorData.message || 'Failed to delete agent from VAPI');
   }
 
   // Delete from our database
