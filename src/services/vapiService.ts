@@ -325,18 +325,73 @@ const generateMockCallsData = () => {
   });
 };
 
-// Dummy function for getCallStatistics - adjusted to match expected return structure
+// Function to get call statistics from VAPI API
 export const getCallStatistics = async () => {
-  // This is a placeholder implementation
-  return {
-    totalCalls: 0,
-    completedCalls: 0,
-    averageDuration: 0,
-    successRate: 0,
-    callsPerDay: [],
-    timePeriod: {
-      start: new Date(),
-      end: new Date()
+  try {
+    console.log("Fetching real call statistics from VAPI API...");
+    
+    // First, get all calls
+    const calls = await getCalls();
+    
+    if (!Array.isArray(calls) || calls.length === 0) {
+      console.log("No calls found, returning default statistics");
+      return {
+        totalCalls: 0,
+        completedCalls: 0,
+        averageDuration: 0,
+        successRate: 0,
+        callsPerDay: [],
+        timePeriod: {
+          start: new Date(),
+          end: new Date()
+        }
+      };
     }
-  };
+    
+    // Calculate statistics from calls data
+    const totalCalls = calls.length;
+    const completedCalls = calls.filter(call => call.status === 'completed').length;
+    
+    // Calculate average duration (in seconds)
+    let totalDuration = 0;
+    let durationsCount = 0;
+    calls.forEach(call => {
+      if (call.status === 'completed' && call.duration) {
+        totalDuration += call.duration;
+        durationsCount++;
+      }
+    });
+    const averageDuration = durationsCount > 0 ? Math.round(totalDuration / durationsCount) : 0;
+    
+    // Find start and end dates
+    const dates = calls.map(call => new Date(call.createdAt || call.created_at));
+    const start = new Date(Math.min(...dates.map(date => date.getTime())));
+    const end = new Date(Math.max(...dates.map(date => date.getTime())));
+    
+    return {
+      totalCalls,
+      completedCalls,
+      averageDuration,
+      successRate: totalCalls > 0 ? (completedCalls / totalCalls) * 100 : 0,
+      callsPerDay: [],  // This would require additional processing if needed
+      timePeriod: {
+        start,
+        end
+      }
+    };
+  } catch (error) {
+    console.error("Error calculating call statistics:", error);
+    // Return default values if calculation fails
+    return {
+      totalCalls: 0,
+      completedCalls: 0,
+      averageDuration: 0,
+      successRate: 0,
+      callsPerDay: [],
+      timePeriod: {
+        start: new Date(),
+        end: new Date()
+      }
+    };
+  }
 };
