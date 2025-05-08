@@ -17,7 +17,7 @@ import {
   ResponsiveContainer 
 } from "recharts";
 import { formatNumber, formatDuration } from "@/utils/formatters";
-import { ArrowUp, ArrowDown, Phone, Calendar } from "lucide-react";
+import { ArrowUp, ArrowDown, Phone } from "lucide-react";
 import { getCalls, getCallStatistics } from "@/services/vapiService";
 import { format, subDays } from "date-fns";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -68,16 +68,6 @@ const CallsOverview: React.FC = () => {
     
     try {
       console.log(`Fetching calls data for period: ${period}...`);
-      // Get call statistics first since it has more accurate numbers
-      console.log("Fetching call statistics...");
-      const stats = await getCallStatistics();
-      console.log("Call statistics received:", stats);
-      
-      if (!stats) {
-        setError("Failed to retrieve call statistics");
-        setIsLoading(false);
-        return;
-      }
       
       // Calculate time period based on selected filter
       const today = new Date();
@@ -97,7 +87,7 @@ const CallsOverview: React.FC = () => {
           startDate = subDays(today, 6); // Default to 7 days
       }
       
-      // Fetch calls data for chart
+      // Fetch calls data
       const calls = await getCalls();
       console.log("Calls data received:", calls);
       
@@ -115,18 +105,35 @@ const CallsOverview: React.FC = () => {
         return callDate >= startDate && callDate <= today;
       });
       
+      console.log(`Filtered ${filteredCalls.length} calls for the selected period`);
+      
       // Process calls data for chart
       processCallsData(filteredCalls, period);
       
-      // Calculate time saved (average 3 minutes per call)
-      const timeSavedMinutes = stats.completedCalls * 3;
+      // Calculate stats from filtered calls
+      const completedCalls = filteredCalls.filter(call => call.status === 'completed').length;
       
-      // Set statistics from API response
+      // Calculate total duration for time saved (in seconds)
+      let totalDuration = 0;
+      filteredCalls.forEach(call => {
+        if (call.duration) {
+          totalDuration += call.duration;
+        }
+      });
+      
+      // If no duration data, estimate 3 minutes (180 seconds) per completed call
+      if (totalDuration === 0) {
+        totalDuration = completedCalls * 180;
+      }
+      
+      // Calculate calls change percentage compared to previous period
+      const callsChange = calculateCallsChange(calls, startDate, today);
+      
       setCallStats({
-        totalCalls: stats.totalCalls,
-        completedCalls: stats.completedCalls,
-        timeSaved: timeSavedMinutes,
-        callsChange: calculateCallsChange(calls),
+        totalCalls: filteredCalls.length,
+        completedCalls: completedCalls,
+        timeSaved: Math.floor(totalDuration / 60), // Convert seconds to minutes
+        callsChange: callsChange,
         timePeriod: {
           start: startDate,
           end: today
@@ -190,34 +197,31 @@ const CallsOverview: React.FC = () => {
     setCallsData(days);
   };
 
-  const calculateCallsChange = (calls: any[]): number => {
-    // Calculate percentage change compared to previous period
-    const today = new Date();
-    const last7Days = calls.filter(call => {
+  const calculateCallsChange = (calls: any[], startDate: Date, endDate: Date): number => {
+    // Calculate percentage change compared to previous period of the same length
+    const periodLength = endDate.getTime() - startDate.getTime();
+    const previousStartDate = new Date(startDate.getTime() - periodLength);
+    
+    const currentPeriodCalls = calls.filter(call => {
       if (!call.createdAt) return false;
       const callDate = new Date(call.createdAt);
-      return (today.getTime() - callDate.getTime()) / (1000 * 3600 * 24) <= 7;
+      return callDate >= startDate && callDate <= endDate;
     }).length;
     
-    const previous7Days = calls.filter(call => {
+    const previousPeriodCalls = calls.filter(call => {
       if (!call.createdAt) return false;
       const callDate = new Date(call.createdAt);
-      const dayDiff = (today.getTime() - callDate.getTime()) / (1000 * 3600 * 24);
-      return dayDiff > 7 && dayDiff <= 14;
+      return callDate >= previousStartDate && callDate < startDate;
     }).length;
     
-    if (previous7Days === 0) return last7Days > 0 ? 100 : 0;
-    return Math.round(((last7Days - previous7Days) / previous7Days) * 100);
+    if (previousPeriodCalls === 0) return currentPeriodCalls > 0 ? 100 : 0;
+    return Math.round(((currentPeriodCalls - previousPeriodCalls) / previousPeriodCalls) * 100);
   };
   
   return (
     <div className="space-y-6">
       {/* Time Period Selection */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center text-sm text-muted-foreground">
-          <Calendar className="h-4 w-4 mr-1" />
-          <span>Time period:</span>
-        </div>
+      <div className="flex justify-end gap-2">
         <div className="flex gap-2">
           <Button 
             variant={selectedPeriod === 'today' ? 'default' : 'outline'} 
@@ -263,7 +267,7 @@ const CallsOverview: React.FC = () => {
             <div className="text-sm flex items-center">
               <span className={callStats.callsChange >= 0 ? "text-green-500 flex items-center" : "text-red-500 flex items-center"}>
                 {callStats.callsChange >= 0 ? <ArrowUp size={16} className="mr-1" /> : <ArrowDown size={16} className="mr-1" />}
-                {Math.abs(callStats.callsChange)}% from last week
+                {Math.abs(callStats.callsChange)}% from last period
               </span>
             </div>
           </CardContent>
