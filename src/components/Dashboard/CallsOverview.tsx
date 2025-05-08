@@ -17,15 +17,16 @@ import {
   ResponsiveContainer 
 } from "recharts";
 import { formatNumber, formatDuration } from "@/utils/formatters";
-import { ArrowUp, ArrowDown, Phone, AlertCircle, Calendar } from "lucide-react";
+import { ArrowUp, ArrowDown, Phone, Calendar } from "lucide-react";
 import { getCalls, getCallStatistics } from "@/services/vapiService";
 import { format, subDays } from "date-fns";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 interface CallStats {
   totalCalls: number;
   completedCalls: number;
-  avgDuration: number;
+  timeSaved: number;
   callsChange: number;
   timePeriod?: {
     start: Date | null;
@@ -39,11 +40,13 @@ interface CallChartData {
   date: Date;
 }
 
+type TimePeriod = 'today' | '7days' | '30days';
+
 const CallsOverview: React.FC = () => {
   const [callStats, setCallStats] = useState<CallStats>({
     totalCalls: 0,
     completedCalls: 0,
-    avgDuration: 0,
+    timeSaved: 0,
     callsChange: 0,
     timePeriod: {
       start: null,
@@ -53,69 +56,116 @@ const CallsOverview: React.FC = () => {
   const [callsData, setCallsData] = useState<CallChartData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('7days');
 
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
+    fetchData(selectedPeriod);
+  }, [selectedPeriod]);
+
+  const fetchData = async (period: TimePeriod) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      console.log(`Fetching calls data for period: ${period}...`);
+      // Get call statistics first since it has more accurate numbers
+      console.log("Fetching call statistics...");
+      const stats = await getCallStatistics();
+      console.log("Call statistics received:", stats);
       
-      try {
-        console.log("Fetching calls data...");
-        // Get call statistics first since it has more accurate numbers
-        console.log("Fetching call statistics...");
-        const stats = await getCallStatistics();
-        console.log("Call statistics received:", stats);
-        
-        if (!stats) {
-          setError("Failed to retrieve call statistics");
-          setIsLoading(false);
-          return;
-        }
-        
-        // Fetch calls data for chart
-        const calls = await getCalls();
-        console.log("Calls data received:", calls);
-        
-        if (!Array.isArray(calls)) {
-          console.error("Calls data is not an array:", calls);
-          setError("Invalid calls data format received from API");
-          setIsLoading(false);
-          return;
-        }
-        
-        // Process calls data for chart
-        processCallsData(calls);
-        
-        // Set statistics from API response
-        setCallStats({
-          totalCalls: stats.totalCalls,
-          completedCalls: stats.completedCalls,
-          avgDuration: stats.averageDuration,
-          callsChange: calculateCallsChange(calls),
-          timePeriod: stats.timePeriod
-        });
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-        setError("Unable to fetch call data. Please check API configuration.");
-      } finally {
+      if (!stats) {
+        setError("Failed to retrieve call statistics");
         setIsLoading(false);
+        return;
       }
-    };
+      
+      // Calculate time period based on selected filter
+      const today = new Date();
+      let startDate: Date;
+      
+      switch(period) {
+        case 'today':
+          startDate = new Date(today.setHours(0, 0, 0, 0));
+          break;
+        case '7days':
+          startDate = subDays(today, 6);
+          break;
+        case '30days':
+          startDate = subDays(today, 29);
+          break;
+        default:
+          startDate = subDays(today, 6); // Default to 7 days
+      }
+      
+      // Fetch calls data for chart
+      const calls = await getCalls();
+      console.log("Calls data received:", calls);
+      
+      if (!Array.isArray(calls)) {
+        console.error("Calls data is not an array:", calls);
+        setError("Invalid calls data format received from API");
+        setIsLoading(false);
+        return;
+      }
+      
+      // Filter calls based on selected period
+      const filteredCalls = calls.filter(call => {
+        if (!call || !call.createdAt) return false;
+        const callDate = new Date(call.createdAt);
+        return callDate >= startDate && callDate <= today;
+      });
+      
+      // Process calls data for chart
+      processCallsData(filteredCalls, period);
+      
+      // Calculate time saved (average 3 minutes per call)
+      const timeSavedMinutes = stats.completedCalls * 3;
+      
+      // Set statistics from API response
+      setCallStats({
+        totalCalls: stats.totalCalls,
+        completedCalls: stats.completedCalls,
+        timeSaved: timeSavedMinutes,
+        callsChange: calculateCallsChange(calls),
+        timePeriod: {
+          start: startDate,
+          end: today
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+      setError("Unable to fetch call data. Please check API configuration.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    fetchData();
-  }, []);
-
-  const processCallsData = (calls: any[]) => {
+  const processCallsData = (calls: any[], period: TimePeriod) => {
     if (!Array.isArray(calls)) {
       console.error("Cannot process calls data: not an array");
       return;
     }
     
+    let daysToShow: number;
+    switch(period) {
+      case 'today':
+        daysToShow = 1;
+        break;
+      case '7days':
+        daysToShow = 7;
+        break;
+      case '30days':
+        daysToShow = 30;
+        break;
+      default:
+        daysToShow = 7;
+    }
+    
     // Create a map to group calls by day
-    const lastSevenDays = Array.from({ length: 7 }, (_, i) => {
-      const date = subDays(new Date(), 6 - i);
+    const days = Array.from({ length: daysToShow }, (_, i) => {
+      const date = subDays(new Date(), daysToShow - 1 - i);
       return {
-        day: format(date, 'EEE'),
+        day: format(date, period === 'today' ? 'HH:00' : 'EEE'),
         date: date,
         calls: 0
       };
@@ -125,17 +175,19 @@ const CallsOverview: React.FC = () => {
     calls.forEach(call => {
       if (call && call.createdAt) {
         const callDate = new Date(call.createdAt);
-        const dayIndex = lastSevenDays.findIndex(day => 
-          format(day.date, 'yyyy-MM-dd') === format(callDate, 'yyyy-MM-dd')
+        const dayIndex = days.findIndex(day => 
+          period === 'today' 
+            ? format(day.date, 'HH') === format(callDate, 'HH')
+            : format(day.date, 'yyyy-MM-dd') === format(callDate, 'yyyy-MM-dd')
         );
         
         if (dayIndex >= 0) {
-          lastSevenDays[dayIndex].calls += 1;
+          days[dayIndex].calls += 1;
         }
       }
     });
 
-    setCallsData(lastSevenDays);
+    setCallsData(days);
   };
 
   const calculateCallsChange = (calls: any[]): number => {
@@ -158,35 +210,47 @@ const CallsOverview: React.FC = () => {
     return Math.round(((last7Days - previous7Days) / previous7Days) * 100);
   };
   
-  // Format date range for display
-  const formatDateRange = () => {
-    const { start, end } = callStats.timePeriod || { start: null, end: null };
-    if (!start || !end) return "No date range available";
-    
-    return `${format(start, 'MMM d, yyyy')} - ${format(end, 'MMM d, yyyy')}`;
-  };
-  
-  if (error) {
-    return (
-      <Alert variant="destructive" className="mb-6">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    );
-  }
-  
   return (
     <div className="space-y-6">
-      {/* Date Range Display */}
-      {!isLoading && callStats.timePeriod?.start && callStats.timePeriod?.end && (
-        <div className="flex items-center text-sm text-muted-foreground mb-2">
+      {/* Time Period Selection */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center text-sm text-muted-foreground">
           <Calendar className="h-4 w-4 mr-1" />
-          <span>Data for period: {formatDateRange()}</span>
+          <span>Time period:</span>
         </div>
+        <div className="flex gap-2">
+          <Button 
+            variant={selectedPeriod === 'today' ? 'default' : 'outline'} 
+            size="sm"
+            onClick={() => setSelectedPeriod('today')}
+          >
+            Today
+          </Button>
+          <Button 
+            variant={selectedPeriod === '7days' ? 'default' : 'outline'} 
+            size="sm"
+            onClick={() => setSelectedPeriod('7days')}
+          >
+            Past 7 Days
+          </Button>
+          <Button 
+            variant={selectedPeriod === '30days' ? 'default' : 'outline'} 
+            size="sm"
+            onClick={() => setSelectedPeriod('30days')}
+          >
+            Past 30 Days
+          </Button>
+        </div>
+      </div>
+      
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Total Calls Card */}
         <Card>
           <CardHeader className="pb-2">
@@ -205,32 +269,17 @@ const CallsOverview: React.FC = () => {
           </CardContent>
         </Card>
         
-        {/* Completed Calls Card */}
+        {/* Time Saved Card */}
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Completed Calls</CardDescription>
+            <CardDescription>Time Saved</CardDescription>
             <CardTitle className="text-3xl font-bold">
-              {isLoading ? "Loading..." : formatNumber(callStats.completedCalls)}
+              {isLoading ? "Loading..." : formatDuration(callStats.timeSaved * 60)}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-sm text-muted-foreground">
-              {isLoading ? "Calculating..." : `${Math.round((callStats.completedCalls / (callStats.totalCalls || 1)) * 100)}% completion rate`}
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Average Duration Card */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Average Duration</CardDescription>
-            <CardTitle className="text-3xl font-bold">
-              {isLoading ? "Loading..." : formatDuration(callStats.avgDuration)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">
-              Per completed call
+              {isLoading ? "Calculating..." : `Based on ${callStats.completedCalls} completed calls`}
             </div>
           </CardContent>
         </Card>
@@ -242,7 +291,9 @@ const CallsOverview: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Call Volume</CardTitle>
-              <CardDescription>Last 7 days call activity</CardDescription>
+              <CardDescription>
+                {selectedPeriod === 'today' ? 'Today\'s' : selectedPeriod === '7days' ? 'Last 7 days' : 'Last 30 days'} call activity
+              </CardDescription>
             </div>
             <div className="flex items-center text-muted-foreground">
               <Phone size={18} className="mr-1" />

@@ -37,7 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
         {/* Logo area */}
         <div className="p-4 flex items-center justify-between">
           {!collapsed && (
-            <div className="font-bold text-xl">VAPI Dashboard</div>
+            <div className="font-bold text-xl">SuperMind</div>
           )}
           <button 
             onClick={() => setCollapsed(!collapsed)}

@@ -15,7 +15,7 @@ const Header: React.FC = () => {
         <div>
           <h1 className="text-xl font-semibold">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
-            Welcome back to your VAPI dashboard
+            Welcome back to your dashboard
             {user?.email && <>, {user.email}</>}
           </p>
         </div>
