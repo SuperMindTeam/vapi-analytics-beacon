@@ -100,11 +100,15 @@ const Calls: React.FC = () => {
               parsedMessages = generateMessagesForCall(call.id);
             }
             
+            // Use the agent name from the API response if available
+            // If the API already provides an agent name, use it directly
+            const agentName = call.assistantName || getAgentName(call.assistantId);
+            
             return {
               ...call,
               messages: parsedMessages,
               previewMessage: getPreviewMessage(call, parsedMessages),
-              agentName: getAgentName(call.assistantId)
+              agentName: agentName
             };
           });
           
@@ -223,7 +227,7 @@ const Calls: React.FC = () => {
 
   // Helper function to get agent name - updated to use assistantId for more reliable mapping
   const getAgentName = (assistantId?: string): string => {
-    if (!assistantId) return 'AI Assistant';
+    if (!assistantId) return 'SuperMind Assistant';
     
     // First, try to find the agent in our uniqueAgents state
     const agent = uniqueAgents.find(agent => agent.id === assistantId);
@@ -231,26 +235,12 @@ const Calls: React.FC = () => {
       return agent.name;
     }
     
-    // If not found in uniqueAgents or name is 'Unknown', use our mapping
-    const agentNameMap: Record<string, string> = {
-      'asst_123456': 'Restaurant Assistant',
-      'asst_789012': 'Booking Agent',
-      'asst_345678': 'Support Rep',
-      '37e86107-ef6b-4aa9-92a4-f5c90e3c8e40': 'Morgan',
-      'mock-call-0': 'Restaurant AI',
-      'mock-call-1': 'Booking Assistant',
-      'mock-call-2': 'Support Agent',
-      'mock-call-3': 'Customer Service',
-      'mock-call-4': 'Reservation Helper',
-    };
-    
-    // For mock-call IDs, we'll use the first part of the ID to map to a name
-    if (assistantId.startsWith('mock-call-')) {
-      const mockId = assistantId;
-      return agentNameMap[mockId] || 'AI Assistant';
+    // For development/testing purposes when the API doesn't return names
+    if (assistantId.startsWith('asst_') || assistantId.startsWith('mock-call-')) {
+      return 'SuperMind Assistant';
     }
     
-    return agentNameMap[assistantId] || 'SuperMind Assistant';
+    return 'SuperMind Assistant';
   };
 
   // Generate consistent messages for a specific call ID
