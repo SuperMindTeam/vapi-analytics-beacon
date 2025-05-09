@@ -1,9 +1,8 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { getCalls } from '@/services/vapiService';
 import { format, isAfter, isBefore, isSameDay } from 'date-fns';
-import { Phone, Clock, User, MessageSquare, Check, AlertTriangle, X, Filter, CalendarRange, ChevronDown, Play, Pause, Volume } from 'lucide-react';
+import { Phone, Clock, User, MessageSquare, Check, AlertTriangle, X, Filter, CalendarRange, ChevronDown, Play, Pause, AudioWaveform } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -23,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import AudioPlayer from '@/components/AudioPlayer';
 
 interface Message {
   role: string;
@@ -69,6 +69,10 @@ const Calls: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [showFilters, setShowFilters] = useState<boolean>(false);
   const [uniqueAgents, setUniqueAgents] = useState<{id: string, name: string}[]>([]);
+  
+  // Add new state for audio duration and current time
+  const [audioDuration, setAudioDuration] = useState<number>(0);
+  const [currentTime, setCurrentTime] = useState<number>(0);
   
   useEffect(() => {
     const fetchCalls = async () => {
@@ -151,19 +155,34 @@ const Calls: React.FC = () => {
 
     if (!audio) {
       const newAudio = new Audio(selectedCall.recordingUrl);
+      
+      // Add event listeners for time updates
+      newAudio.ontimeupdate = () => {
+        setCurrentTime(newAudio.currentTime);
+      };
+      
+      newAudio.onloadedmetadata = () => {
+        setAudioDuration(newAudio.duration);
+      };
+      
       newAudio.onended = () => {
         setIsPlaying(false);
+        setCurrentTime(0);
       };
+      
       newAudio.onpause = () => {
         setIsPlaying(false);
       };
+      
       newAudio.onplay = () => {
         setIsPlaying(true);
       };
+      
       newAudio.onerror = () => {
         toast.error("Failed to load audio recording");
         setIsPlaying(false);
       };
+      
       setAudio(newAudio);
       newAudio.play().catch(err => {
         console.error("Error playing audio:", err);
@@ -189,6 +208,8 @@ const Calls: React.FC = () => {
       audio.currentTime = 0;
       setAudio(null);
       setIsPlaying(false);
+      setCurrentTime(0);
+      setAudioDuration(0);
     }
   }, [selectedCall]);
 
@@ -650,26 +671,46 @@ const Calls: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {/* Audio player controls button */}
-                {selectedCall.recordingUrl && (
-                  <Button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleAudio();
-                    }}
-                    variant="outline" 
-                    size="sm"
-                    className="flex items-center gap-1"
-                  >
-                    {isPlaying ? 
-                      <><Pause className="h-4 w-4" /> Pause</> : 
-                      <><Play className="h-4 w-4" /> Play Recording</>
-                    }
-                  </Button>
-                )}
                 {getStatusBadge(selectedCall.status)}
               </div>
             </div>
+            
+            {/* Audio player */}
+            {selectedCall.recordingUrl && (
+              <div className="p-4 border-b bg-black text-white">
+                <div className="flex flex-col">
+                  {/* Waveform visualization */}
+                  <div className="relative h-10 mb-2">
+                    <AudioWaveform className="w-full h-full text-gray-500" />
+                    {/* Overlay progress bar */}
+                    <div 
+                      className="absolute top-0 left-0 h-full bg-black opacity-50"
+                      style={{ 
+                        width: `${audioDuration ? (currentTime / audioDuration) * 100 : 0}%`,
+                      }}
+                    ></div>
+                  </div>
+                  
+                  {/* Controls and time */}
+                  <div className="flex items-center justify-between">
+                    <Button 
+                      onClick={toggleAudio}
+                      variant="outline" 
+                      size="sm"
+                      className="text-white border-white hover:bg-gray-800 flex items-center gap-1"
+                    >
+                      {isPlaying ? 
+                        <><Pause className="h-4 w-4" /> Pause</> : 
+                        <><Play className="h-4 w-4" /> Play Recording</>
+                      }
+                    </Button>
+                    <div className="text-sm text-white">
+                      {formatTime(currentTime)} / {formatTime(audioDuration)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             
             {/* Conversation messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
