@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,12 +16,14 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
   
-  // Generate waveform bars for visualization
-  const waveformBars = Array.from({ length: 40 }, (_, i) => {
-    // Create random heights for visual effect
-    const height = Math.max(20, Math.floor(Math.random() * 80));
-    return { height };
-  });
+  // Generate static waveform bars
+  // We generate this once on component mount, not on every render
+  const waveformBars = useRef(
+    Array.from({ length: 40 }, (_, i) => ({
+      // Create random heights but keep them fixed for this instance
+      height: Math.max(20, Math.floor(Math.random() * 80))
+    }))
+  ).current;
 
   useEffect(() => {
     // Create audio element
