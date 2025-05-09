@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -259,33 +258,7 @@ export const getCalls = async () => {
       return generateMockCallsData();
     }
     
-    // Process the calls to add assistant names if not already present
-    const processedCalls = await Promise.all(callsData.map(async call => {
-      // If the call already has an assistant name, use it
-      if (call.assistantName) {
-        return call;
-      }
-      
-      // If we have an assistantId but no name, try to fetch it
-      if (call.assistantId) {
-        try {
-          // Try to get the assistant details
-          const assistantDetails = await getAssistantDetails(call.assistantId);
-          if (assistantDetails && assistantDetails.name) {
-            return {
-              ...call,
-              assistantName: assistantDetails.name
-            };
-          }
-        } catch (err) {
-          console.log("Could not fetch assistant details:", err);
-        }
-      }
-      
-      return call;
-    }));
-    
-    return processedCalls;
+    return callsData;
   } catch (error) {
     console.error("Error fetching calls:", error);
     // Return mock data if API call fails
@@ -293,29 +266,6 @@ export const getCalls = async () => {
     return generateMockCallsData();
   }
 };
-
-// New function to get assistant details
-async function getAssistantDetails(assistantId: string) {
-  try {
-    const response = await fetch(`${VAPI_API_ENDPOINT}/assistant/${assistantId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${VAPI_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch assistant details');
-    }
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error("Error fetching assistant details:", error);
-    return null;
-  }
-}
 
 // Function to generate mock calls data for development
 const generateMockCallsData = () => {
@@ -359,17 +309,6 @@ const generateMockCallsData = () => {
     const duration = status === 'completed' ? getRandomDuration() : undefined;
     const endedAt = status === 'completed' ? new Date(new Date(createdAt).getTime() + (duration || 0) * 1000).toISOString() : undefined;
     
-    // Add realistic assistant names to the mock data
-    const assistantNames = [
-      'Order Assistant', 
-      'Customer Support', 
-      'Booking Agent', 
-      'Technical Support',
-      'Sales Representative'
-    ];
-    
-    const assistantName = assistantNames[index % assistantNames.length];
-    
     return {
       id: `mock-call-${index}`,
       assistantId: `asst_${Math.random().toString(36).substring(2, 10)}`,
@@ -381,8 +320,7 @@ const generateMockCallsData = () => {
       customer: {
         number: getRandomPhoneNumber()
       },
-      endedReason: status === 'completed' ? (Math.random() > 0.3 ? 'auto_resolved' : 'manual') : undefined,
-      assistantName: assistantName // Add assistant name directly to mock data
+      endedReason: status === 'completed' ? (Math.random() > 0.3 ? 'auto_resolved' : 'manual') : undefined
     };
   });
 };

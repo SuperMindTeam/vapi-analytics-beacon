@@ -86,8 +86,7 @@ const Calls: React.FC = () => {
             } else if (call.messages && call.messages.length > 0) {
               // If the API returned messages directly, use those
               parsedMessages = call.messages;
-            } else if (call.status === 'ended' && call.endedReason && call.endedReason.includes('error')) {
-              // Fix: Added null check for endedReason before using includes()
+            } else if (call.status === 'ended' && call.endedReason?.includes('error')) {
               // If the call failed, we'll show an error message
               parsedMessages = [
                 {
@@ -101,15 +100,11 @@ const Calls: React.FC = () => {
               parsedMessages = generateMessagesForCall(call.id);
             }
             
-            // Use the agent name from the API response if available
-            // If the API already provides an agent name, use it directly
-            const agentName = call.assistantName || getAgentName(call.assistantId);
-            
             return {
               ...call,
               messages: parsedMessages,
               previewMessage: getPreviewMessage(call, parsedMessages),
-              agentName: agentName
+              agentName: getAgentName(call.assistantId)
             };
           });
           
@@ -228,7 +223,7 @@ const Calls: React.FC = () => {
 
   // Helper function to get agent name - updated to use assistantId for more reliable mapping
   const getAgentName = (assistantId?: string): string => {
-    if (!assistantId) return 'SuperMind Assistant';
+    if (!assistantId) return 'AI Assistant';
     
     // First, try to find the agent in our uniqueAgents state
     const agent = uniqueAgents.find(agent => agent.id === assistantId);
@@ -236,12 +231,26 @@ const Calls: React.FC = () => {
       return agent.name;
     }
     
-    // For development/testing purposes when the API doesn't return names
-    if (assistantId.startsWith('asst_') || assistantId.startsWith('mock-call-')) {
-      return 'SuperMind Assistant';
+    // If not found in uniqueAgents or name is 'Unknown', use our mapping
+    const agentNameMap: Record<string, string> = {
+      'asst_123456': 'Restaurant Assistant',
+      'asst_789012': 'Booking Agent',
+      'asst_345678': 'Support Rep',
+      '37e86107-ef6b-4aa9-92a4-f5c90e3c8e40': 'Morgan',
+      'mock-call-0': 'Restaurant AI',
+      'mock-call-1': 'Booking Assistant',
+      'mock-call-2': 'Support Agent',
+      'mock-call-3': 'Customer Service',
+      'mock-call-4': 'Reservation Helper',
+    };
+    
+    // For mock-call IDs, we'll use the first part of the ID to map to a name
+    if (assistantId.startsWith('mock-call-')) {
+      const mockId = assistantId;
+      return agentNameMap[mockId] || 'AI Assistant';
     }
     
-    return 'SuperMind Assistant';
+    return agentNameMap[assistantId] || 'SuperMind Assistant';
   };
 
   // Generate consistent messages for a specific call ID
@@ -308,8 +317,7 @@ const Calls: React.FC = () => {
       case 'failed':
         return <Badge variant="destructive">Failed</Badge>;
       case 'ended':
-        // Fix: Added null/undefined check for endedReason before using includes()
-        if (selectedCall?.endedReason && selectedCall.endedReason.includes('error')) {
+        if (selectedCall?.endedReason?.includes('error')) {
           return <Badge variant="destructive">Failed</Badge>;
         }
         return <Badge className="bg-green-500">Completed</Badge>;
@@ -365,8 +373,7 @@ const Calls: React.FC = () => {
       case "resolved":
         filtered = calls.filter(call => 
           call.status.toLowerCase() === 'completed' || 
-          // Fix: Added null/undefined check for endedReason before using includes()
-          (call.status.toLowerCase() === 'ended' && (!call.endedReason || !call.endedReason.includes('error')))
+          (call.status.toLowerCase() === 'ended' && !call.endedReason?.includes('error'))
         );
         break;
       case "autoresolved":
@@ -543,8 +550,7 @@ const Calls: React.FC = () => {
                     <div className="text-xs text-gray-500">
                       {call.agentName || 'AI Assistant'}
                     </div>
-                    {/* Fix: Added null/undefined check for endedReason before using includes() */}
-                    {call.endedReason && call.endedReason.includes('error') ? (
+                    {call.endedReason?.includes('error') ? (
                       <Badge variant="outline" className="text-red-500 border-red-200 text-xs">
                         <X className="h-3 w-3 mr-1" /> Failed
                       </Badge>
@@ -585,8 +591,7 @@ const Calls: React.FC = () => {
             
             {/* Conversation messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Fix: Added null/undefined check for endedReason before using includes() */}
-              {selectedCall.status === 'ended' && selectedCall.endedReason && selectedCall.endedReason.includes('error') && (
+              {selectedCall.status === 'ended' && selectedCall.endedReason?.includes('error') && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-center text-red-700 text-sm my-2">
                   <AlertTriangle className="h-4 w-4 mr-2 flex-shrink-0" />
                   <p>This call failed: {formatEndedReason(selectedCall.endedReason)}</p>
@@ -631,8 +636,7 @@ const Calls: React.FC = () => {
                 })
               ) : (
                 <div className="text-center p-6 text-gray-500">
-                  {/* Fix: Added null/undefined check for endedReason before using includes() */}
-                  {selectedCall.endedReason && selectedCall.endedReason.includes('error') 
+                  {selectedCall.endedReason?.includes('error') 
                     ? `No transcript available. Call failed: ${formatEndedReason(selectedCall.endedReason)}`
                     : "No transcript available for this call"
                   }
