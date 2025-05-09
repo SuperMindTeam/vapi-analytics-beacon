@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { 
   Card, 
@@ -19,7 +18,7 @@ import {
 import { formatNumber, formatDuration } from "@/utils/formatters";
 import { ArrowUp, ArrowDown, Phone } from "lucide-react";
 import { getCalls, getCallStatistics } from "@/services/vapiService";
-import { format, subDays } from "date-fns";
+import { format, subDays, startOfDay, endOfDay, isSameDay, parseISO } from "date-fns";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
@@ -75,7 +74,8 @@ const CallsOverview: React.FC = () => {
       
       switch(period) {
         case 'today':
-          startDate = new Date(today.setHours(0, 0, 0, 0));
+          // Use startOfDay for more accurate "today" filtering
+          startDate = startOfDay(today);
           break;
         case '7days':
           startDate = subDays(today, 6);
@@ -102,6 +102,13 @@ const CallsOverview: React.FC = () => {
       const filteredCalls = calls.filter(call => {
         if (!call || !call.createdAt) return false;
         const callDate = new Date(call.createdAt);
+        
+        // For "today" specifically, check if the call date is on the same calendar day
+        if (period === 'today') {
+          return isSameDay(callDate, today);
+        }
+        
+        // For other periods, use the standard range filter
         return callDate >= startDate && callDate <= today;
       });
       
