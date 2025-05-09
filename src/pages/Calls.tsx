@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import AudioPlayer from '@/components/AudioPlayer';
+import { formatDuration } from '@/utils/formatters';
 
 interface Message {
   role: string;
@@ -385,13 +386,12 @@ const Calls: React.FC = () => {
     return number;
   };
 
-  const formatDuration = (seconds?: number): string => {
-    if (!seconds) return 'N/A';
-    
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  // Format time (mm:ss)
+  const formatTime = (time: number): string => {
+    if (isNaN(time) || time === undefined) return "0:00";
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   const getStatusBadge = (status: string) => {
@@ -677,39 +677,7 @@ const Calls: React.FC = () => {
             
             {/* Audio player */}
             {selectedCall.recordingUrl && (
-              <div className="p-4 border-b bg-black text-white">
-                <div className="flex flex-col">
-                  {/* Waveform visualization */}
-                  <div className="relative h-10 mb-2">
-                    <AudioWaveform className="w-full h-full text-gray-500" />
-                    {/* Overlay progress bar */}
-                    <div 
-                      className="absolute top-0 left-0 h-full bg-black opacity-50"
-                      style={{ 
-                        width: `${audioDuration ? (currentTime / audioDuration) * 100 : 0}%`,
-                      }}
-                    ></div>
-                  </div>
-                  
-                  {/* Controls and time */}
-                  <div className="flex items-center justify-between">
-                    <Button 
-                      onClick={toggleAudio}
-                      variant="outline" 
-                      size="sm"
-                      className="text-white border-white hover:bg-gray-800 flex items-center gap-1"
-                    >
-                      {isPlaying ? 
-                        <><Pause className="h-4 w-4" /> Pause</> : 
-                        <><Play className="h-4 w-4" /> Play Recording</>
-                      }
-                    </Button>
-                    <div className="text-sm text-white">
-                      {formatTime(currentTime)} / {formatTime(audioDuration)}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <AudioPlayer audioUrl={selectedCall.recordingUrl} />
             )}
             
             {/* Conversation messages */}

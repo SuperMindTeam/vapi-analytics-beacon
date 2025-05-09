@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, AudioWaveform } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { formatDuration } from '@/utils/formatters';
 
 interface AudioPlayerProps {
   audioUrl: string;
