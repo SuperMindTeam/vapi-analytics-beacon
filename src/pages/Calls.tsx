@@ -86,7 +86,8 @@ const Calls: React.FC = () => {
             } else if (call.messages && call.messages.length > 0) {
               // If the API returned messages directly, use those
               parsedMessages = call.messages;
-            } else if (call.status === 'ended' && call.endedReason?.includes('error')) {
+            } else if (call.status === 'ended' && call.endedReason && call.endedReason.includes('error')) {
+              // Fix: Added null check for endedReason before using includes()
               // If the call failed, we'll show an error message
               parsedMessages = [
                 {
@@ -307,7 +308,8 @@ const Calls: React.FC = () => {
       case 'failed':
         return <Badge variant="destructive">Failed</Badge>;
       case 'ended':
-        if (selectedCall?.endedReason?.includes('error')) {
+        // Fix: Added null/undefined check for endedReason before using includes()
+        if (selectedCall?.endedReason && selectedCall.endedReason.includes('error')) {
           return <Badge variant="destructive">Failed</Badge>;
         }
         return <Badge className="bg-green-500">Completed</Badge>;
@@ -363,7 +365,8 @@ const Calls: React.FC = () => {
       case "resolved":
         filtered = calls.filter(call => 
           call.status.toLowerCase() === 'completed' || 
-          (call.status.toLowerCase() === 'ended' && !call.endedReason?.includes('error'))
+          // Fix: Added null/undefined check for endedReason before using includes()
+          (call.status.toLowerCase() === 'ended' && (!call.endedReason || !call.endedReason.includes('error')))
         );
         break;
       case "autoresolved":
@@ -540,7 +543,8 @@ const Calls: React.FC = () => {
                     <div className="text-xs text-gray-500">
                       {call.agentName || 'AI Assistant'}
                     </div>
-                    {call.endedReason?.includes('error') ? (
+                    {/* Fix: Added null/undefined check for endedReason before using includes() */}
+                    {call.endedReason && call.endedReason.includes('error') ? (
                       <Badge variant="outline" className="text-red-500 border-red-200 text-xs">
                         <X className="h-3 w-3 mr-1" /> Failed
                       </Badge>
@@ -581,7 +585,8 @@ const Calls: React.FC = () => {
             
             {/* Conversation messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {selectedCall.status === 'ended' && selectedCall.endedReason?.includes('error') && (
+              {/* Fix: Added null/undefined check for endedReason before using includes() */}
+              {selectedCall.status === 'ended' && selectedCall.endedReason && selectedCall.endedReason.includes('error') && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-center text-red-700 text-sm my-2">
                   <AlertTriangle className="h-4 w-4 mr-2 flex-shrink-0" />
                   <p>This call failed: {formatEndedReason(selectedCall.endedReason)}</p>
@@ -626,7 +631,8 @@ const Calls: React.FC = () => {
                 })
               ) : (
                 <div className="text-center p-6 text-gray-500">
-                  {selectedCall.endedReason?.includes('error') 
+                  {/* Fix: Added null/undefined check for endedReason before using includes() */}
+                  {selectedCall.endedReason && selectedCall.endedReason.includes('error') 
                     ? `No transcript available. Call failed: ${formatEndedReason(selectedCall.endedReason)}`
                     : "No transcript available for this call"
                   }
