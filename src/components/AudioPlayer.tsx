@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, AudioWaveform } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { formatDuration } from '@/utils/formatters';
@@ -13,7 +13,16 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl }) => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [duration, setDuration] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<number>(0);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const waveformRef = useRef<HTMLDivElement>(null);
+  
+  // Generate waveform bars for visualization
+  const waveformBars = Array.from({ length: 40 }, (_, i) => {
+    // Create random heights for visual effect
+    const height = Math.max(20, Math.floor(Math.random() * 80));
+    return { height };
+  });
 
   useEffect(() => {
     // Create audio element
@@ -68,6 +77,30 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl }) => {
     }
   };
 
+  // Toggle mute
+  const toggleMute = () => {
+    if (!audioRef.current) return;
+    
+    audioRef.current.muted = !isMuted;
+    setIsMuted(!isMuted);
+  };
+
+  // Handle waveform click to jump to position
+  const handleWaveformClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef.current || !waveformRef.current) return;
+    
+    const waveformRect = waveformRef.current.getBoundingClientRect();
+    const clickPosition = (e.clientX - waveformRect.left) / waveformRect.width;
+    const newTime = clickPosition * duration;
+    
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+    
+    if (!isPlaying) {
+      togglePlayPause();
+    }
+  };
+
   // Format time (mm:ss)
   const formatTime = (time: number): string => {
     const minutes = Math.floor(time / 60);
@@ -76,14 +109,33 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl }) => {
   };
 
   return (
-    <div className="p-4 border-b bg-black text-white">
+    <div className="p-4 border-b bg-gray-50">
       <div className="flex flex-col">
-        {/* Waveform visualization */}
-        <div className="relative h-10 mb-2">
-          <AudioWaveform className="w-full h-full text-gray-500" />
-          {/* Overlay progress bar */}
+        {/* Waveform visualization - clickable */}
+        <div 
+          ref={waveformRef}
+          onClick={handleWaveformClick} 
+          className="relative h-16 mb-2 flex items-center cursor-pointer"
+          title="Click to seek"
+        >
+          {/* Waveform bars */}
+          <div className="absolute inset-0 flex items-center justify-between px-2">
+            {waveformBars.map((bar, index) => (
+              <div
+                key={index}
+                className={`w-1.5 rounded-full ${
+                  (index / waveformBars.length) < (currentTime / duration)
+                    ? 'bg-primary'
+                    : 'bg-gray-300'
+                }`}
+                style={{ height: `${bar.height}%` }}
+              />
+            ))}
+          </div>
+          
+          {/* Progress overlay */}
           <div 
-            className="absolute top-0 left-0 h-full bg-black opacity-50"
+            className="absolute top-0 left-0 h-full bg-gray-200 opacity-30 pointer-events-none"
             style={{ 
               width: `${duration ? (currentTime / duration) * 100 : 0}%`,
             }}
@@ -92,18 +144,33 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl }) => {
         
         {/* Controls and time */}
         <div className="flex items-center justify-between">
-          <Button 
-            onClick={togglePlayPause}
-            variant="outline" 
-            size="sm"
-            className="text-white border-white hover:bg-gray-800 flex items-center gap-1"
-          >
-            {isPlaying ? 
-              <><Pause className="h-4 w-4" /> Pause</> : 
-              <><Play className="h-4 w-4" /> Play Recording</>
-            }
-          </Button>
-          <div className="text-sm text-white">
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={togglePlayPause}
+              variant="outline" 
+              size="sm"
+              className="flex items-center gap-1"
+            >
+              {isPlaying ? 
+                <><Pause className="h-4 w-4" /> Pause</> : 
+                <><Play className="h-4 w-4" /> Play</>
+              }
+            </Button>
+            
+            <Button
+              onClick={toggleMute}
+              variant="ghost"
+              size="sm"
+              className="flex items-center"
+            >
+              {isMuted ? 
+                <VolumeX className="h-4 w-4" /> : 
+                <Volume2 className="h-4 w-4" />
+              }
+            </Button>
+          </div>
+          
+          <div className="text-sm font-mono">
             {formatTime(currentTime)} / {formatTime(duration)}
           </div>
         </div>
