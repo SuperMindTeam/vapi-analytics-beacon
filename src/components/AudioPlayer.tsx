@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl }) => {
   const [duration, setDuration] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [previewPosition, setPreviewPosition] = useState<{x: number, time: number} | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
   
@@ -102,6 +104,25 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl }) => {
     }
   };
 
+  // Handle mouse move over waveform to show time preview
+  const handleWaveformMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!waveformRef.current || duration <= 0) return;
+    
+    const waveformRect = waveformRef.current.getBoundingClientRect();
+    const hoverPosition = (e.clientX - waveformRect.left) / waveformRect.width;
+    const previewTime = hoverPosition * duration;
+    
+    setPreviewPosition({
+      x: e.clientX - waveformRect.left,
+      time: previewTime
+    });
+  };
+
+  // Handle mouse leave to hide time preview
+  const handleWaveformMouseLeave = () => {
+    setPreviewPosition(null);
+  };
+
   // Format time (mm:ss)
   const formatTime = (time: number): string => {
     const minutes = Math.floor(time / 60);
@@ -116,6 +137,8 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl }) => {
         <div 
           ref={waveformRef}
           onClick={handleWaveformClick} 
+          onMouseMove={handleWaveformMouseMove}
+          onMouseLeave={handleWaveformMouseLeave}
           className="relative h-16 mb-2 flex items-center cursor-pointer"
           title="Click to seek"
         >
@@ -138,6 +161,23 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl }) => {
               );
             })}
           </div>
+          
+          {/* Preview time indicator */}
+          {previewPosition && (
+            <div 
+              className="absolute top-0 pointer-events-none"
+              style={{ left: `${previewPosition.x}px`, transform: 'translateX(-50%)' }}
+            >
+              <div className="flex flex-col items-center">
+                {/* Time bubble */}
+                <div className="bg-[#1A1F2C] text-white text-xs px-3 py-1 rounded-full mb-1">
+                  {formatTime(previewPosition.time)}
+                </div>
+                {/* Vertical line */}
+                <div className="w-0.5 h-16 bg-[#1EAEDB]"></div>
+              </div>
+            </div>
+          )}
         </div>
         
         {/* Controls and time */}
