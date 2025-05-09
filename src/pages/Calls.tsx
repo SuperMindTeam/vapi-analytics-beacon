@@ -1,8 +1,9 @@
+
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { getCalls } from '@/services/vapiService';
 import { format, isAfter, isBefore, isSameDay } from 'date-fns';
-import { Phone, Clock, User, MessageSquare, Check, AlertTriangle, X, Filter, CalendarRange, ChevronDown } from 'lucide-react';
+import { Phone, Clock, User, MessageSquare, Check, AlertTriangle, X, Filter, CalendarRange, ChevronDown, Play, Pause, Volume } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -58,6 +59,10 @@ const Calls: React.FC = () => {
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [newMessage, setNewMessage] = useState<string>("");
+  
+  // For audio player
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
   
   // Updated to use "all" as the default value instead of empty string
   const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("all");
@@ -136,6 +141,66 @@ const Calls: React.FC = () => {
 
     fetchCalls();
   }, []);
+
+  // Function for playing and controlling audio
+  const toggleAudio = () => {
+    if (!selectedCall?.recordingUrl) {
+      toast.error("No recording available for this call");
+      return;
+    }
+
+    if (!audio) {
+      const newAudio = new Audio(selectedCall.recordingUrl);
+      newAudio.onended = () => {
+        setIsPlaying(false);
+      };
+      newAudio.onpause = () => {
+        setIsPlaying(false);
+      };
+      newAudio.onplay = () => {
+        setIsPlaying(true);
+      };
+      newAudio.onerror = () => {
+        toast.error("Failed to load audio recording");
+        setIsPlaying(false);
+      };
+      setAudio(newAudio);
+      newAudio.play().catch(err => {
+        console.error("Error playing audio:", err);
+        toast.error("Failed to play audio recording");
+      });
+      setIsPlaying(true);
+    } else {
+      if (isPlaying) {
+        audio.pause();
+      } else {
+        audio.play().catch(err => {
+          console.error("Error playing audio:", err);
+          toast.error("Failed to play audio recording");
+        });
+      }
+    }
+  };
+
+  // Clean up audio when changing selected call
+  useEffect(() => {
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+      setAudio(null);
+      setIsPlaying(false);
+    }
+  }, [selectedCall]);
+
+  // Clean up audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
+    };
+  }, [audio]);
   
   // Parse transcript string into message objects
   const parseTranscriptToMessages = (transcript: string): Message[] => {
@@ -199,7 +264,7 @@ const Calls: React.FC = () => {
   // Get preview message for call list
   const getPreviewMessage = (call: Call, messages: Message[]): string => {
     // If call failed, show the failure reason
-    if (call.status === 'ended' && call.endedReason?.includes('error')) {
+    if (call.status === 'ended' && call.endedReason && call.endedReason.includes('error')) {
       return `Call failed: ${formatEndedReason(call.endedReason)}`;
     }
     
@@ -317,7 +382,7 @@ const Calls: React.FC = () => {
       case 'failed':
         return <Badge variant="destructive">Failed</Badge>;
       case 'ended':
-        if (selectedCall?.endedReason?.includes('error')) {
+        if (selectedCall?.endedReason && selectedCall.endedReason.includes('error')) {
           return <Badge variant="destructive">Failed</Badge>;
         }
         return <Badge className="bg-green-500">Completed</Badge>;
@@ -550,7 +615,7 @@ const Calls: React.FC = () => {
                     <div className="text-xs text-gray-500">
                       {call.agentName || 'AI Assistant'}
                     </div>
-                    {call.endedReason?.includes('error') ? (
+                    {call.endedReason && call.endedReason.includes('error') ? (
                       <Badge variant="outline" className="text-red-500 border-red-200 text-xs">
                         <X className="h-3 w-3 mr-1" /> Failed
                       </Badge>
@@ -584,14 +649,31 @@ const Calls: React.FC = () => {
                   Phone call with <span className="font-medium">{selectedCall.agentName || 'AI Assistant'}</span>
                 </div>
               </div>
-              <div>
+              <div className="flex items-center gap-2">
+                {/* Audio player controls button */}
+                {selectedCall.recordingUrl && (
+                  <Button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleAudio();
+                    }}
+                    variant="outline" 
+                    size="sm"
+                    className="flex items-center gap-1"
+                  >
+                    {isPlaying ? 
+                      <><Pause className="h-4 w-4" /> Pause</> : 
+                      <><Play className="h-4 w-4" /> Play Recording</>
+                    }
+                  </Button>
+                )}
                 {getStatusBadge(selectedCall.status)}
               </div>
             </div>
             
             {/* Conversation messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {selectedCall.status === 'ended' && selectedCall.endedReason?.includes('error') && (
+              {selectedCall.status === 'ended' && selectedCall.endedReason && selectedCall.endedReason.includes('error') && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-center text-red-700 text-sm my-2">
                   <AlertTriangle className="h-4 w-4 mr-2 flex-shrink-0" />
                   <p>This call failed: {formatEndedReason(selectedCall.endedReason)}</p>
@@ -636,7 +718,7 @@ const Calls: React.FC = () => {
                 })
               ) : (
                 <div className="text-center p-6 text-gray-500">
-                  {selectedCall.endedReason?.includes('error') 
+                  {selectedCall.endedReason && selectedCall.endedReason.includes('error') 
                     ? `No transcript available. Call failed: ${formatEndedReason(selectedCall.endedReason)}`
                     : "No transcript available for this call"
                   }
