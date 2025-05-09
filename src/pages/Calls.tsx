@@ -221,20 +221,36 @@ const Calls: React.FC = () => {
     return call.previewMessage || "No message content";
   };
 
-  // Helper function to get agent name - in a real app, this would fetch from your agents database
+  // Helper function to get agent name - updated to use assistantId for more reliable mapping
   const getAgentName = (assistantId?: string): string => {
-    // This is a placeholder. In a real app, you would fetch the agent name based on the ID
-    // For now, we'll use a mapping of agent IDs to names or return a default
+    if (!assistantId) return 'AI Assistant';
+    
+    // First, try to find the agent in our uniqueAgents state
+    const agent = uniqueAgents.find(agent => agent.id === assistantId);
+    if (agent && agent.name && agent.name !== 'Unknown') {
+      return agent.name;
+    }
+    
+    // If not found in uniqueAgents or name is 'Unknown', use our mapping
     const agentNameMap: Record<string, string> = {
       'asst_123456': 'Restaurant Assistant',
       'asst_789012': 'Booking Agent',
       'asst_345678': 'Support Rep',
       '37e86107-ef6b-4aa9-92a4-f5c90e3c8e40': 'Morgan',
-      // Add more mappings as needed
+      'mock-call-0': 'Restaurant AI',
+      'mock-call-1': 'Booking Assistant',
+      'mock-call-2': 'Support Agent',
+      'mock-call-3': 'Customer Service',
+      'mock-call-4': 'Reservation Helper',
     };
     
-    if (!assistantId) return 'AI Assistant';
-    return agentNameMap[assistantId] || 'AI Assistant';
+    // For mock-call IDs, we'll use the first part of the ID to map to a name
+    if (assistantId.startsWith('mock-call-')) {
+      const mockId = assistantId;
+      return agentNameMap[mockId] || 'AI Assistant';
+    }
+    
+    return agentNameMap[assistantId] || 'SuperMind Assistant';
   };
 
   // Generate consistent messages for a specific call ID
