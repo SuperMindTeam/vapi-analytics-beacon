@@ -118,28 +118,25 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl }) => {
           className="relative h-16 mb-2 flex items-center cursor-pointer"
           title="Click to seek"
         >
-          {/* Waveform bars */}
+          {/* Static waveform bars */}
           <div className="absolute inset-0 flex items-center justify-between px-2">
-            {waveformBars.map((bar, index) => (
-              <div
-                key={index}
-                className={`w-1.5 rounded-full ${
-                  (index / waveformBars.length) < (currentTime / duration)
-                    ? 'bg-primary'
-                    : 'bg-gray-300'
-                }`}
-                style={{ height: `${bar.height}%` }}
-              />
-            ))}
+            {waveformBars.map((bar, index) => {
+              // Calculate if this bar is part of the progress
+              const barPosition = index / waveformBars.length;
+              const progress = duration > 0 ? currentTime / duration : 0;
+              const isActive = barPosition < progress;
+              
+              return (
+                <div
+                  key={index}
+                  className={`w-1.5 rounded-full ${
+                    isActive ? 'bg-primary' : 'bg-gray-300'
+                  }`}
+                  style={{ height: `${bar.height}%` }}
+                />
+              );
+            })}
           </div>
-          
-          {/* Progress overlay */}
-          <div 
-            className="absolute top-0 left-0 h-full bg-gray-200 opacity-30 pointer-events-none"
-            style={{ 
-              width: `${duration ? (currentTime / duration) * 100 : 0}%`,
-            }}
-          ></div>
         </div>
         
         {/* Controls and time */}
