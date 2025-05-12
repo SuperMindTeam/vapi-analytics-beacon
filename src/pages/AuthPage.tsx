@@ -81,9 +81,15 @@ const AuthPage: React.FC = () => {
       // Redirect to login tab after registration
       document.getElementById("login-tab")?.click();
       toast.success("Account created! Please sign in.");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Registration error:", error);
-      toast.error("Failed to create account. Please try again.");
+      
+      // Check for duplicate email error
+      if (error.message && error.message.includes("already exists")) {
+        toast.error("This email is already registered. Please use a different email or sign in.");
+      } else {
+        toast.error("Failed to create account. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -100,7 +106,7 @@ const AuthPage: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-[hsl(var(--dashboard-purple))]">VAPI Dashboard</h1>
+          <h1 className="text-3xl font-bold text-[hsl(var(--dashboard-purple))]">SuperMind Dashboard</h1>
           <p className="text-gray-500 mt-2">Sign in to your account or create a new one</p>
         </div>
         

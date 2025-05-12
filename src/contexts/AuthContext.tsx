@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -214,7 +215,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -225,12 +226,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
+        // Pass the detailed error message up to the component
         throw error;
       }
 
       toast.success("Registration successful! Please check your email to verify your account.");
     } catch (error: any) {
-      toast.error(error.message || "Failed to sign up");
+      // Forward the error to be handled by the component
       console.error("Sign up error:", error);
       throw error;
     }
