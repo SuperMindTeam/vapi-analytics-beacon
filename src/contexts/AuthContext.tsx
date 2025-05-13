@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
@@ -8,26 +7,34 @@ import { toast } from "@/components/ui/use-toast";
 interface AuthContextProps {
   user: User | null;
   loading: boolean;
+  userId: string | null;  // Added userId property
+  orgId: string | null;   // Added orgId property
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  refreshOrgId: () => Promise<void>; // Added refreshOrgId function
 }
 
 // Create context with default values
 const AuthContext = createContext<AuthContextProps>({
   user: null,
   loading: true,
+  userId: null,  // Added default value
+  orgId: null,   // Added default value
   signIn: async () => {},
   signUp: async () => {},
   signOut: async () => {},
   resetPassword: async () => {},
+  refreshOrgId: async () => {}, // Added default value
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [sessionChecked, setSessionChecked] = useState<boolean>(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
 
   // Initialize user on mount - improved to be more reliable
   useEffect(() => {
@@ -47,9 +54,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.info("Auth state changed: SIGNED_IN");
           console.info("User in auth state change:", session.user.id);
           setUser(session.user);
+          setUserId(session.user.id);
+          
+          // Fetch user's organization ID
+          try {
+            const { data: orgData, error: orgError } = await supabase
+              .from('org_members')
+              .select('org_id')
+              .eq('user_id', session.user.id)
+              .eq('is_default', true)
+              .maybeSingle();
+              
+            if (orgError) {
+              console.error("Error fetching organization:", orgError.message);
+            } else if (orgData?.org_id) {
+              setOrgId(orgData.org_id);
+              console.info("User's organization fetched successfully:", orgData.org_id);
+            }
+          } catch (err) {
+            console.error("Unexpected error fetching organization:", err);
+          }
         } else {
           console.info("No active session found");
           setUser(null);
+          setUserId(null);
+          setOrgId(null);
         }
       } catch (error) {
         console.error("Unexpected error during session check:", error);
@@ -67,15 +96,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.info("Auth state changed: SIGNED_IN");
         console.info("User in auth state change:", session.user.id);
         setUser(session.user);
+        setUserId(session.user.id);
+        
+        // Fetch user's organization ID after sign in
+        setTimeout(async () => {
+          try {
+            const { data: orgData, error: orgError } = await supabase
+              .from('org_members')
+              .select('org_id')
+              .eq('user_id', session.user.id)
+              .eq('is_default', true)
+              .maybeSingle();
+              
+            if (orgError) {
+              console.error("Error fetching organization:", orgError.message);
+            } else if (orgData?.org_id) {
+              setOrgId(orgData.org_id);
+              console.info("User's organization fetched successfully:", orgData.org_id);
+            }
+          } catch (err) {
+            console.error("Unexpected error fetching organization:", err);
+          }
+        }, 0);
+        
         setLoading(false);
       } else if (event === 'SIGNED_OUT') {
         console.info("Auth state changed: SIGNED_OUT");
         setUser(null);
+        setUserId(null);
+        setOrgId(null);
         setLoading(false);
       } else if (event === 'TOKEN_REFRESHED') {
         console.info("Auth state changed: TOKEN_REFRESHED");
         if (session) {
           setUser(session.user);
+          setUserId(session.user.id);
         }
         setLoading(false);
       }
@@ -85,6 +140,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subscription.unsubscribe();
     };
   }, []);
+
+  // Function to refresh organization ID
+  const refreshOrgId = async () => {
+    if (!userId) return;
+    
+    try {
+      const { data: orgData, error: orgError } = await supabase
+        .from('org_members')
+        .select('org_id')
+        .eq('user_id', userId)
+        .eq('is_default', true)
+        .maybeSingle();
+        
+      if (orgError) {
+        console.error("Error refreshing organization:", orgError.message);
+        throw orgError;
+      } else if (orgData?.org_id) {
+        setOrgId(orgData.org_id);
+        console.info("User's organization refreshed successfully:", orgData.org_id);
+        return orgData.org_id;
+      } else {
+        console.warn("No organization found during refresh");
+        return null;
+      }
+    } catch (err) {
+      console.error("Unexpected error refreshing organization:", err);
+      throw err;
+    }
+  };
 
   // Sign in function
   const signIn = async (email: string, password: string) => {
@@ -156,7 +240,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, resetPassword }}>
+    <AuthContext.Provider value={{ user, loading, userId, orgId, signIn, signUp, signOut, resetPassword, refreshOrgId }}>
       {children}
     </AuthContext.Provider>
   );

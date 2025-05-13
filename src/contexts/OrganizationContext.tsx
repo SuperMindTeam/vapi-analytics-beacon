@@ -13,7 +13,7 @@ interface OrganizationContextType {
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
 
 export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { userId, orgId } = useAuth(); // Access the userId and orgId from AuthContext
+  const auth = useAuth(); // Get the full auth context
   const [loading, setLoading] = useState(false); // Changed to false since we're not fetching anything
   const [error, setError] = useState<Error | null>(null);
 
