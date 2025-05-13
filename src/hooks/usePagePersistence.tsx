@@ -12,11 +12,15 @@ export const usePagePersistence = () => {
   useEffect(() => {
     // Save current path to session storage when location changes
     if (location.pathname !== '/auth') {
-      // Only save the current path if it's a direct route, not a nested one
-      // This fixes the issue with navigation between calls and dashboard
+      // Store the current path, but handle the root path correctly
       const currentPath = location.pathname;
-      sessionStorage.setItem('lastPath', currentPath);
-      console.info(`Current path saved: ${currentPath}`);
+      
+      // Don't override existing path when navigating to root/dashboard
+      // This was causing the navigation issue where dashboard wasn't loading
+      if (currentPath !== '/' || !sessionStorage.getItem('lastPath')) {
+        sessionStorage.setItem('lastPath', currentPath);
+        console.info(`Current path saved: ${currentPath}`);
+      }
     }
   }, [location.pathname]);
   

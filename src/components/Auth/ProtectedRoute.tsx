@@ -34,9 +34,9 @@ const ProtectedRoute = () => {
     return <Navigate to="/auth" replace state={{ from: location }} />;
   }
   
-  // Check if we have a stored path to navigate to
+  // Only redirect if we're at the root route and there's a stored path
   const lastPath = sessionStorage.getItem('lastPath');
-  if (lastPath && location.pathname === '/' && lastPath !== '/') {
+  if (lastPath && location.pathname === '/' && lastPath !== '/' && lastPath !== '') {
     console.info(`Restoring previous path: ${lastPath}`);
     return <Navigate to={lastPath} replace />;
   }

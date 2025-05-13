@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import NotFound from "./pages/NotFound";
 import DashboardLayout from "./components/Dashboard/DashboardLayout";
-import CallsOverview from "./components/Dashboard/CallsOverview";
+import Index from "./pages/Index";
 import Calls from "./pages/Calls";
 import AgentsList from "./components/Dashboard/AgentsList";
 import AuthPage from "./pages/AuthPage";
@@ -44,7 +44,7 @@ const App = () => (
                   <DashboardLayout />
                 </OrganizationProvider>
               }>
-                <Route path="/" element={<CallsOverview />} />
+                <Route path="/" element={<Index />} />
                 <Route path="/calls" element={<Calls />} />
                 <Route path="/agents" element={<AgentsList />} />
                 <Route path="/settings" element={<Settings />} />
