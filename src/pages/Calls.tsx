@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { getCalls } from '@/services/vapiService';
 import { format, isAfter, isBefore, isSameDay } from 'date-fns';
@@ -486,9 +486,9 @@ const Calls: React.FC = () => {
   };
 
   return (
-    <div className="flex h-[calc(100vh-64px)] bg-background overflow-hidden">
+    <div className="h-full flex bg-background">
       {/* Left sidebar - Call list */}
-      <div className="w-1/3 border-r overflow-hidden flex flex-col">
+      <div className="w-1/3 border-r h-full flex flex-col">
         <div className="p-4">
           <div className="mb-4">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -662,7 +662,7 @@ const Calls: React.FC = () => {
       </div>
 
       {/* Right content - Conversation */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 h-full flex flex-col">
         {selectedCall ? (
           <>
             {/* Header with call details */}
