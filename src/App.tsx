@@ -15,7 +15,16 @@ import { OrganizationProvider } from "./contexts/OrganizationContext";
 import ProtectedRoute from "./components/Auth/ProtectedRoute";
 import Settings from "./pages/Settings";
 
-const queryClient = new QueryClient();
+// Create a persistent query client with staleTime to maintain data between tab switches
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60000, // 1 minute
+      refetchOnWindowFocus: false, // Prevent refetching when window regains focus
+      retry: 1, // Limit retries
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

@@ -1,12 +1,13 @@
 
 import { useAuth } from "@/contexts/AuthContext";
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 const ProtectedRoute = () => {
   const { user, loading } = useAuth();
   const [showLoading, setShowLoading] = useState(true);
+  const location = useLocation();
   
   // Reduce the timeout to make the loading state shorter
   useEffect(() => {
@@ -29,7 +30,15 @@ const ProtectedRoute = () => {
   
   // Force navigation to auth page if not authenticated after loading
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    // Save the current location to redirect back after login
+    return <Navigate to="/auth" replace state={{ from: location }} />;
+  }
+  
+  // Check if we have a stored path to navigate to
+  const lastPath = sessionStorage.getItem('lastPath');
+  if (lastPath && location.pathname === '/' && lastPath !== '/') {
+    console.info(`Restoring previous path: ${lastPath}`);
+    return <Navigate to={lastPath} replace />;
   }
   
   // Render outlet if authenticated or loading timeout exceeded

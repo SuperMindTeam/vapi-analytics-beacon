@@ -1,23 +1,23 @@
 
-import React, { useState } from "react";
-import Sidebar from "@/components/Dashboard/Sidebar";
-import Header from "@/components/Dashboard/Header";
-import { Outlet } from "react-router-dom";
+import React, { useState } from 'react';
+import { Outlet } from 'react-router-dom';
+import Header from './Header';
+import Sidebar from './Sidebar';
+import { usePagePersistence } from '@/hooks/usePagePersistence';
 
-const DashboardLayout: React.FC = () => {
+const DashboardLayout = () => {
+  // Add state for sidebar collapse
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
+  
+  // Use the page persistence hook to remember the current page
+  usePagePersistence();
+  
   return (
-    <div className="dashboard-layout">
-      <Sidebar 
-        collapsed={sidebarCollapsed} 
-        setCollapsed={setSidebarCollapsed} 
-      />
-      
-      <div className="dashboard-main">
+    <div className="min-h-screen flex flex-col md:flex-row bg-[#F7F7F7]">
+      <Sidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
         <Header />
-        
-        <main className="p-6">
+        <main className="flex-1 overflow-hidden">
           <Outlet />
         </main>
       </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { getCalls } from '@/services/vapiService';
 import { format, isAfter, isBefore, isSameDay } from 'date-fns';
@@ -24,6 +24,8 @@ import {
 import { Button } from "@/components/ui/button";
 import AudioPlayer from '@/components/AudioPlayer';
 import { formatDuration } from '@/utils/formatters';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { AspectRatio } from '@/components/ui/aspect-ratio';
 
 interface Message {
   role: string;
@@ -484,177 +486,183 @@ const Calls: React.FC = () => {
   };
 
   return (
-    <div className="flex h-[calc(100vh-64px)] bg-background">
+    <div className="h-full flex bg-background">
       {/* Left sidebar - Call list */}
-      <div className="w-1/3 border-r overflow-y-auto p-4">
-        <div className="mb-4">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid grid-cols-3 mb-4">
-              <TabsTrigger 
-                value="all" 
-                className={`text-sm ${activeTab === "all" ? "bg-[#9c90ff] text-white" : ""}`}
-              >
-                All
-                {calls.length > 0 && (
-                  <span className={`ml-1 ${activeTab === "all" ? "bg-white text-[#9c90ff]" : "bg-gray-200 text-gray-700"} rounded-full px-2 py-0.5 text-xs`}>
-                    {calls.length}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger 
-                value="unresolved" 
-                className={`text-sm ${activeTab === "unresolved" ? "bg-[#9c90ff] text-white" : ""}`}
-              >
-                Unresolved
-                {calls.filter(c => c.status.toLowerCase() === 'in-progress').length > 0 && (
-                  <span className={`ml-1 ${activeTab === "unresolved" ? "bg-white text-[#9c90ff]" : "bg-gray-200 text-gray-700"} rounded-full px-2 py-0.5 text-xs`}>
-                    {calls.filter(c => c.status.toLowerCase() === 'in-progress').length}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger 
-                value="resolved" 
-                className={`text-sm ${activeTab === "resolved" ? "bg-[#9c90ff] text-white" : ""}`}
-              >
-                Resolved
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-        
-        {/* Filter section */}
-        <div className="mb-4">
-          <Button 
-            variant="outline" 
-            className="w-full flex items-center justify-between mb-2"
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <div className="flex items-center">
-              <Filter className="h-4 w-4 mr-2" />
-              Filters
-            </div>
-            <ChevronDown className={`h-4 w-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-          </Button>
+      <div className="w-1/3 border-r h-full flex flex-col">
+        <div className="p-4">
+          <div className="mb-4">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid grid-cols-3 mb-4">
+                <TabsTrigger 
+                  value="all" 
+                  className={`text-sm ${activeTab === "all" ? "bg-[#9c90ff] text-white" : ""}`}
+                >
+                  All
+                  {calls.length > 0 && (
+                    <span className={`ml-1 ${activeTab === "all" ? "bg-white text-[#9c90ff]" : "bg-gray-200 text-gray-700"} rounded-full px-2 py-0.5 text-xs`}>
+                      {calls.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="unresolved" 
+                  className={`text-sm ${activeTab === "unresolved" ? "bg-[#9c90ff] text-white" : ""}`}
+                >
+                  Unresolved
+                  {calls.filter(c => c.status.toLowerCase() === 'in-progress').length > 0 && (
+                    <span className={`ml-1 ${activeTab === "unresolved" ? "bg-white text-[#9c90ff]" : "bg-gray-200 text-gray-700"} rounded-full px-2 py-0.5 text-xs`}>
+                      {calls.filter(c => c.status.toLowerCase() === 'in-progress').length}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="resolved" 
+                  className={`text-sm ${activeTab === "resolved" ? "bg-[#9c90ff] text-white" : ""}`}
+                >
+                  Resolved
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
           
-          {showFilters && (
-            <div className="p-3 border rounded-md space-y-3">
-              {/* Agent filter */}
-              <div>
-                <label className="text-sm font-medium block mb-1">Agent</label>
-                <Select value={selectedAgentFilter} onValueChange={setSelectedAgentFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Any Agent" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* Fix: Providing a non-empty string value for the "Any Agent" option */}
-                    <SelectItem value="all">Any Agent</SelectItem>
-                    {uniqueAgents.map(agent => (
-                      <SelectItem key={agent.id} value={agent.id}>
-                        {agent.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          {/* Filter section */}
+          <div className="mb-4">
+            <Button 
+              variant="outline" 
+              className="w-full flex items-center justify-between mb-2"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <div className="flex items-center">
+                <Filter className="h-4 w-4 mr-2" />
+                Filters
               </div>
-              
-              {/* Date filter */}
-              <div>
-                <label className="text-sm font-medium block mb-1">Date</label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal">
-                      <CalendarRange className="mr-2 h-4 w-4" />
-                      {selectedDate ? format(selectedDate, 'PPP') : <span>Pick a date</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={setSelectedDate}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+              <ChevronDown className={`h-4 w-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+            </Button>
+            
+            {showFilters && (
+              <div className="p-3 border rounded-md space-y-3">
+                {/* Agent filter */}
+                <div>
+                  <label className="text-sm font-medium block mb-1">Agent</label>
+                  <Select value={selectedAgentFilter} onValueChange={setSelectedAgentFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Any Agent" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Any Agent</SelectItem>
+                      {uniqueAgents.map(agent => (
+                        <SelectItem key={agent.id} value={agent.id}>
+                          {agent.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Date filter */}
+                <div>
+                  <label className="text-sm font-medium block mb-1">Date</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <CalendarRange className="mr-2 h-4 w-4" />
+                        {selectedDate ? format(selectedDate, 'PPP') : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={setSelectedDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                
+                {/* Clear filters button */}
+                <Button 
+                  variant="ghost" 
+                  className="w-full text-sm"
+                  onClick={clearFilters}
+                >
+                  Clear filters
+                </Button>
               </div>
-              
-              {/* Clear filters button */}
-              <Button 
-                variant="ghost" 
-                className="w-full text-sm"
-                onClick={clearFilters}
-              >
-                Clear filters
-              </Button>
+            )}
+          </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-center text-red-700 text-sm">
+              <AlertTriangle className="h-4 w-4 mr-2 flex-shrink-0" />
+              <p>{error}</p>
             </div>
           )}
         </div>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-center text-red-700 text-sm">
-            <AlertTriangle className="h-4 w-4 mr-2 flex-shrink-0" />
-            <p>{error}</p>
-          </div>
-        )}
-
-        {loading ? (
-          <div className="space-y-3">
-            {[...Array(5)].map((_, index) => (
-              <div key={index} className="p-3 border rounded-md">
-                <div className="flex justify-between items-start">
-                  <Skeleton className="h-5 w-32" />
-                  <Skeleton className="h-5 w-5 rounded-full" />
-                </div>
-                <Skeleton className="h-4 w-3/4 mt-2" />
-                <Skeleton className="h-3 w-1/2 mt-1" />
+        {/* Call list with scroll area */}
+        <ScrollArea className="flex-1">
+          <div className="p-4">
+            {loading ? (
+              <div className="space-y-3">
+                {[...Array(5)].map((_, index) => (
+                  <div key={index} className="p-3 border rounded-md">
+                    <div className="flex justify-between items-start">
+                      <Skeleton className="h-5 w-32" />
+                      <Skeleton className="h-5 w-5 rounded-full" />
+                    </div>
+                    <Skeleton className="h-4 w-3/4 mt-2" />
+                    <Skeleton className="h-3 w-1/2 mt-1" />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {getFilteredCalls().length > 0 ? (
-              getFilteredCalls().map((call) => (
-                <div 
-                  key={call.id}
-                  onClick={() => setSelectedCall(call)}
-                  className={`p-3 border rounded-md cursor-pointer hover:bg-gray-50 transition-colors ${
-                    selectedCall?.id === call.id ? 'border-primary bg-gray-50' : ''
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="font-medium">
-                      {formatPhoneNumber(call.customer?.number)}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {format(new Date(call.createdAt), 'MMM d h:mma')}
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-600 mt-1 truncate">
-                    {call.previewMessage || "No message content"}
-                  </div>
-                  <div className="flex justify-between items-center mt-1">
-                    <div className="text-xs text-gray-500">
-                      {call.agentName || 'AI Assistant'}
-                    </div>
-                    {call.endedReason && call.endedReason.includes('error') ? (
-                      <Badge variant="outline" className="text-red-500 border-red-200 text-xs">
-                        <X className="h-3 w-3 mr-1" /> Failed
-                      </Badge>
-                    ) : null}
-                  </div>
-                </div>
-              ))
             ) : (
-              <div className="text-center p-6 text-gray-500">
-                No calls match the current filter
+              <div className="space-y-2">
+                {getFilteredCalls().length > 0 ? (
+                  getFilteredCalls().map((call) => (
+                    <div 
+                      key={call.id}
+                      onClick={() => setSelectedCall(call)}
+                      className={`p-3 border rounded-md cursor-pointer hover:bg-gray-50 transition-colors ${
+                        selectedCall?.id === call.id ? 'border-primary bg-gray-50' : ''
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="font-medium">
+                          {formatPhoneNumber(call.customer?.number)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {format(new Date(call.createdAt), 'MMM d h:mma')}
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-600 mt-1 truncate">
+                        {call.previewMessage || "No message content"}
+                      </div>
+                      <div className="flex justify-between items-center mt-1">
+                        <div className="text-xs text-gray-500">
+                          {call.agentName || 'AI Assistant'}
+                        </div>
+                        {call.endedReason && call.endedReason.includes('error') ? (
+                          <Badge variant="outline" className="text-red-500 border-red-200 text-xs">
+                            <X className="h-3 w-3 mr-1" /> Failed
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center p-6 text-gray-500">
+                    No calls match the current filter
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
+        </ScrollArea>
       </div>
 
       {/* Right content - Conversation */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 h-full flex flex-col">
         {selectedCall ? (
           <>
             {/* Header with call details */}
@@ -680,60 +688,62 @@ const Calls: React.FC = () => {
               <AudioPlayer audioUrl={selectedCall.recordingUrl} />
             )}
             
-            {/* Conversation messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {selectedCall.status === 'ended' && selectedCall.endedReason && selectedCall.endedReason.includes('error') && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-center text-red-700 text-sm my-2">
-                  <AlertTriangle className="h-4 w-4 mr-2 flex-shrink-0" />
-                  <p>This call failed: {formatEndedReason(selectedCall.endedReason)}</p>
-                </div>
-              )}
-              
-              {selectedCall.messages && selectedCall.messages.length > 0 ? (
-                selectedCall.messages.map((message, index) => {
-                  // Skip system messages unless they are error messages
-                  if (message.role === 'system' && !message.content.includes('failed') && !message.content.includes('error')) {
-                    return null;
-                  }
-                  
-                  // Determine if this is an AI/agent message or a customer/user message
-                  const isAIMessage = message.role === 'ai' || message.role === 'agent';
-                  const isCustomerMessage = message.role === 'customer' || message.role === 'user';
-                  
-                  return (
-                    <div 
-                      key={index} 
-                      className={`flex ${isAIMessage ? 'justify-end' : isCustomerMessage ? 'justify-start' : 'justify-center'}`}
-                    >
+            {/* Conversation messages in a scrollable container */}
+            <ScrollArea className="flex-1">
+              <div className="p-4 space-y-4">
+                {selectedCall.status === 'ended' && selectedCall.endedReason && selectedCall.endedReason.includes('error') && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-center text-red-700 text-sm my-2">
+                    <AlertTriangle className="h-4 w-4 mr-2 flex-shrink-0" />
+                    <p>This call failed: {formatEndedReason(selectedCall.endedReason)}</p>
+                  </div>
+                )}
+                
+                {selectedCall.messages && selectedCall.messages.length > 0 ? (
+                  selectedCall.messages.map((message, index) => {
+                    // Skip system messages unless they are error messages
+                    if (message.role === 'system' && !message.content.includes('failed') && !message.content.includes('error')) {
+                      return null;
+                    }
+                    
+                    // Determine if this is an AI/agent message or a customer/user message
+                    const isAIMessage = message.role === 'ai' || message.role === 'agent';
+                    const isCustomerMessage = message.role === 'customer' || message.role === 'user';
+                    
+                    return (
                       <div 
-                        className={`max-w-[70%] p-3 rounded-lg ${
-                          isAIMessage
-                            ? 'bg-primary text-primary-foreground' 
-                            : isCustomerMessage
-                              ? 'bg-gray-100 text-gray-800'
-                              : 'bg-red-50 text-red-700 border border-red-200'
-                        }`}
+                        key={index} 
+                        className={`flex ${isAIMessage ? 'justify-end' : isCustomerMessage ? 'justify-start' : 'justify-center'}`}
                       >
-                        <div className="text-sm">{message.content}</div>
-                        <div className="text-xs mt-1 opacity-70 text-right">
-                          {message.timestamp && format(new Date(message.timestamp), 'h:mm a')}
-                          {isAIMessage && (
-                            <span className="ml-1 text-xs">Sent by {selectedCall.agentName || 'AI'}</span>
-                          )}
+                        <div 
+                          className={`max-w-[70%] p-3 rounded-lg ${
+                            isAIMessage
+                              ? 'bg-primary text-primary-foreground' 
+                              : isCustomerMessage
+                                ? 'bg-gray-100 text-gray-800'
+                                : 'bg-red-50 text-red-700 border border-red-200'
+                          }`}
+                        >
+                          <div className="text-sm">{message.content}</div>
+                          <div className="text-xs mt-1 opacity-70 text-right">
+                            {message.timestamp && format(new Date(message.timestamp), 'h:mm a')}
+                            {isAIMessage && (
+                              <span className="ml-1 text-xs">Sent by {selectedCall.agentName || 'AI'}</span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center p-6 text-gray-500">
-                  {selectedCall.endedReason && selectedCall.endedReason.includes('error') 
-                    ? `No transcript available. Call failed: ${formatEndedReason(selectedCall.endedReason)}`
-                    : "No transcript available for this call"
-                  }
-                </div>
-              )}
-            </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center p-6 text-gray-500">
+                    {selectedCall.endedReason && selectedCall.endedReason.includes('error') 
+                      ? `No transcript available. Call failed: ${formatEndedReason(selectedCall.endedReason)}`
+                      : "No transcript available for this call"
+                    }
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
             
             {/* Message input */}
             <div className="p-4 border-t">
