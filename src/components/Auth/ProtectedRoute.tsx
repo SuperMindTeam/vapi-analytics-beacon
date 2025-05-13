@@ -34,14 +34,8 @@ const ProtectedRoute = () => {
     return <Navigate to="/auth" replace state={{ from: location }} />;
   }
   
-  // Only redirect if we're at the root route and there's a stored path
-  const lastPath = sessionStorage.getItem('lastPath');
-  if (lastPath && location.pathname === '/' && lastPath !== '/' && lastPath !== '') {
-    console.info(`Restoring previous path: ${lastPath}`);
-    return <Navigate to={lastPath} replace />;
-  }
-  
-  // Render outlet if authenticated or loading timeout exceeded
+  // When at root path ('/'), always show the dashboard
+  // No redirect needed as we're already where we want to be
   return <Outlet />;
 };
 
