@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
@@ -7,26 +8,26 @@ import { toast } from "@/components/ui/use-toast";
 interface AuthContextProps {
   user: User | null;
   loading: boolean;
-  userId: string | null;  // Added userId property
-  orgId: string | null;   // Added orgId property
+  userId: string | null;
+  orgId: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
-  refreshOrgId: () => Promise<void>; // Added refreshOrgId function
+  refreshOrgId: () => Promise<string | null>; // Updated return type to match implementation
 }
 
 // Create context with default values
 const AuthContext = createContext<AuthContextProps>({
   user: null,
   loading: true,
-  userId: null,  // Added default value
-  orgId: null,   // Added default value
+  userId: null,
+  orgId: null,
   signIn: async () => {},
   signUp: async () => {},
   signOut: async () => {},
   resetPassword: async () => {},
-  refreshOrgId: async () => {}, // Added default value
+  refreshOrgId: async () => null, // Updated default value to match return type
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -143,7 +144,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Function to refresh organization ID
   const refreshOrgId = async () => {
-    if (!userId) return;
+    if (!userId) return null;
     
     try {
       const { data: orgData, error: orgError } = await supabase
