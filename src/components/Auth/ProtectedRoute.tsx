@@ -34,6 +34,13 @@ const ProtectedRoute = () => {
     return <Navigate to="/auth" replace state={{ from: location }} />;
   }
   
+  // Check if we have a stored path to navigate to
+  const lastPath = sessionStorage.getItem('lastPath');
+  if (lastPath && location.pathname === '/' && lastPath !== '/') {
+    console.info(`Restoring previous path: ${lastPath}`);
+    return <Navigate to={lastPath} replace />;
+  }
+  
   // Render outlet if authenticated or loading timeout exceeded
   return <Outlet />;
 };
