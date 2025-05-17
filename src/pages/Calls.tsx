@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { getCalls } from '@/services/vapiService';
@@ -95,7 +94,7 @@ const Calls: React.FC = () => {
       if (!orgId) return;
       
       try {
-        console.log("Fetching agents for org ID:", orgId);
+        console.log("Calls: Fetching agents for org ID:", orgId);
         const { data: agents, error } = await supabase
           .from('agents')
           .select('id, name, org_id')
@@ -107,10 +106,10 @@ const Calls: React.FC = () => {
         }
         
         if (agents && agents.length > 0) {
-          console.log("Found agents for org:", agents);
+          console.log("Calls: Found agents for org:", agents);
           setOrgAgents(agents);
         } else {
-          console.log("No agents found for this organization");
+          console.log("Calls: No agents found for this organization");
         }
       } catch (err) {
         console.error('Failed to fetch organization agents:', err);
@@ -125,23 +124,29 @@ const Calls: React.FC = () => {
       try {
         setLoading(true);
         
-        if (!orgId || (orgAgents.length === 0 && orgId)) {
-          console.log("Waiting for org agents to be loaded or no org ID available");
-          // Set empty calls while waiting for agents or if no org ID
+        if (!orgId) {
+          console.log("No organization ID available");
           setCalls([]);
           setLoading(false);
           return;
         }
 
         console.log("Fetching calls with orgId:", orgId);
-        console.log("Organization agents:", orgAgents);
         
         // Get agent IDs from the organization
         const orgAgentIds = orgAgents.map(agent => agent.id);
+        
+        if (orgAgentIds.length === 0) {
+          console.log("No agents found for this organization");
+          setCalls([]);
+          setLoading(false);
+          return;
+        }
+        
         console.log("Filtering calls by org agent IDs:", orgAgentIds);
         
-        // Fetch calls from VAPI
-        const callsData = await getCalls();
+        // Fetch calls from VAPI with agent IDs filter
+        const callsData = await getCalls(orgAgentIds);
         
         if (Array.isArray(callsData)) {
           console.log("Received calls data:", callsData);
@@ -176,56 +181,16 @@ const Calls: React.FC = () => {
             
             return {
               ...call,
-              messages: parsedMessages,
-              previewMessage: getPreviewMessage(call, parsedMessages),
+              messages: call.messages || [],
+              previewMessage: call.previewMessage || getPreviewMessage(call, call.messages || []),
               agentName: getAgentName(call.assistantId)
             };
           });
           
-          // Filter calls by agents that belong to the user's organization
-          let filteredCalls: Call[] = [];
-          
-          if (orgAgentIds && orgAgentIds.length > 0) {
-            console.log("Filtering calls by org agent IDs:", orgAgentIds);
-            
-            // Include calls where:
-            // 1. The assistantId matches one of our org's agents' IDs
-            // 2. OR The phoneNumberId matches one of our org's agents' IDs (some VAPI calls use phoneNumberId for agent identification)
-            // 3. OR The call has our orgId explicitly set
-            filteredCalls = enhancedCalls.filter(call => {
-              const isAssistantMatch = orgAgentIds.includes(call.assistantId);
-              const isPhoneNumberMatch = orgAgentIds.includes(call.phoneNumberId);
-              const isOrgMatch = call.orgId === orgId;
-              
-              return isAssistantMatch || isPhoneNumberMatch || isOrgMatch;
-            });
-            
-            console.log(`Filtered ${enhancedCalls.length} calls down to ${filteredCalls.length} calls for this organization`);
-            
-            if (filteredCalls.length === 0) {
-              // If no calls match our org agents, use the mock generator as a fallback for demonstration
-              console.log("No calls found for this organization, using mock data for demonstration");
-              filteredCalls = generateMockCallsForOrgAgents(orgAgentIds, orgId);
-            }
-          } else if (orgId) {
-            // If we have an orgId but no agents, just filter by orgId directly
-            filteredCalls = enhancedCalls.filter(call => call.orgId === orgId);
-            console.log(`No agents found, filtered to ${filteredCalls.length} calls by orgId directly`);
-            
-            if (filteredCalls.length === 0) {
-              // Use mock data if no calls are found
-              console.log("No calls found with matching orgId, using mock data for demonstration");
-              filteredCalls = generateMockCallsForOrgAgents([], orgId);
-            }
-          } else {
-            // Fallback to all calls if no filtering is possible
-            filteredCalls = enhancedCalls;
-          }
-          
-          setCalls(filteredCalls);
+          setCalls(enhancedCalls);
           
           // Extract unique agents for filter dropdown
-          const agents = filteredCalls
+          const agents = enhancedCalls
             .map(call => ({ id: call.assistantId, name: call.agentName || 'Unknown' }))
             .filter((agent, index, self) => 
               index === self.findIndex(a => a.id === agent.id)
@@ -233,8 +198,8 @@ const Calls: React.FC = () => {
           setUniqueAgents(agents);
           
           // Select the first call by default if available
-          if (filteredCalls.length > 0) {
-            setSelectedCall(filteredCalls[0]);
+          if (enhancedCalls.length > 0) {
+            setSelectedCall(enhancedCalls[0]);
           }
         } else {
           console.error('Invalid calls data format:', callsData);
@@ -466,26 +431,8 @@ const Calls: React.FC = () => {
       return agent.name;
     }
     
-    // If not found, use our mapping
-    const agentNameMap: Record<string, string> = {
-      'asst_123456': 'Restaurant Assistant',
-      'asst_789012': 'Booking Agent',
-      'asst_345678': 'Support Rep',
-      '37e86107-ef6b-4aa9-92a4-f5c90e3c8e40': 'Morgan',
-      'mock-call-0': 'Restaurant AI',
-      'mock-call-1': 'Booking Assistant',
-      'mock-call-2': 'Support Agent',
-      'mock-call-3': 'Customer Service',
-      'mock-call-4': 'Reservation Helper',
-    };
-    
-    // For mock-call IDs, we'll use the first part of the ID to map to a name
-    if (assistantId.startsWith('mock-call-')) {
-      const mockId = assistantId;
-      return agentNameMap[mockId] || 'AI Assistant';
-    }
-    
-    return agentNameMap[assistantId] || 'SuperMind Assistant';
+    // If not found, use a default name based on ID
+    return `Agent ${assistantId.slice(0, 6)}`;
   };
 
   // Generate consistent messages for a specific call ID

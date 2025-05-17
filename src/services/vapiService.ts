@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -252,31 +251,28 @@ export const getCalls = async (orgAgentIds?: string[]) => {
     const callsData = await response.json();
     console.log("Calls data received from API:", callsData);
     
-    // If we get no calls or the API returns a different format than expected,
-    // or if we need to filter for specific agent IDs
-    if (!Array.isArray(callsData) || callsData.length === 0 || (orgAgentIds && orgAgentIds.length > 0)) {
-      if (!Array.isArray(callsData) || callsData.length === 0) {
-        console.log("No calls found or invalid format, returning mock data");
-        return generateMockCallsData();
+    // If the API returns an empty array or incorrect format, generate mock data
+    if (!Array.isArray(callsData) || callsData.length === 0) {
+      console.log("No calls found or invalid format, returning mock data");
+      return generateMockCallsData(orgAgentIds);
+    }
+    
+    // If we have agent IDs, filter the calls
+    if (orgAgentIds && orgAgentIds.length > 0) {
+      console.log("Filtering calls by agent IDs:", orgAgentIds);
+      const filteredCalls = callsData.filter(call => 
+        orgAgentIds.includes(call.assistantId) || orgAgentIds.includes(call.phoneNumberId)
+      );
+      
+      console.log(`Filtered ${callsData.length} calls down to ${filteredCalls.length} for specified agents`);
+      
+      // If no calls are found after filtering, return mock data for the specified agents
+      if (filteredCalls.length === 0) {
+        console.log("No calls found for specified agents, generating mock data");
+        return generateMockCallsData(orgAgentIds);
       }
       
-      // If we have agent IDs, filter the calls
-      if (orgAgentIds && orgAgentIds.length > 0) {
-        console.log("Filtering calls by agent IDs:", orgAgentIds);
-        const filteredCalls = callsData.filter(call => 
-          orgAgentIds.includes(call.assistantId) || orgAgentIds.includes(call.phoneNumberId)
-        );
-        
-        console.log(`Filtered ${callsData.length} calls down to ${filteredCalls.length} for specified agents`);
-        
-        // If no calls are found after filtering, return mock data for the specified agents
-        if (filteredCalls.length === 0) {
-          console.log("No calls found for specified agents, generating mock data");
-          return generateMockCallsData(orgAgentIds);
-        }
-        
-        return filteredCalls;
-      }
+      return filteredCalls;
     }
     
     return callsData;

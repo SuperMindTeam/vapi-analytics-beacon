@@ -21,6 +21,7 @@ import { getCalls, getCallStatistics } from "@/services/vapiService";
 import { format, subDays, startOfDay, endOfDay, isSameDay, parseISO } from "date-fns";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 interface CallStats {
   totalCalls: number;
@@ -39,9 +40,19 @@ interface CallChartData {
   date: Date;
 }
 
+interface Agent {
+  id: string;
+  name: string;
+  org_id: string;
+}
+
 type TimePeriod = 'today' | '7days' | '30days';
 
-const CallsOverview: React.FC = () => {
+interface CallsOverviewProps {
+  orgId: string | null;
+}
+
+const CallsOverview: React.FC<CallsOverviewProps> = ({ orgId }) => {
   const [callStats, setCallStats] = useState<CallStats>({
     totalCalls: 0,
     completedCalls: 0,
@@ -56,10 +67,42 @@ const CallsOverview: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('7days');
+  const [orgAgents, setOrgAgents] = useState<Agent[]>([]);
+
+  // Fetch agents associated with the user's organization
+  useEffect(() => {
+    const fetchOrgAgents = async () => {
+      if (!orgId) return;
+      
+      try {
+        console.log("CallsOverview: Fetching agents for org ID:", orgId);
+        const { data: agents, error } = await supabase
+          .from('agents')
+          .select('id, name, org_id')
+          .eq('org_id', orgId);
+          
+        if (error) {
+          console.error('Error fetching organization agents:', error);
+          return;
+        }
+        
+        if (agents && agents.length > 0) {
+          console.log("CallsOverview: Found agents for org:", agents);
+          setOrgAgents(agents);
+        } else {
+          console.log("CallsOverview: No agents found for this organization");
+        }
+      } catch (err) {
+        console.error('Failed to fetch organization agents:', err);
+      }
+    };
+    
+    fetchOrgAgents();
+  }, [orgId]);
 
   useEffect(() => {
     fetchData(selectedPeriod);
-  }, [selectedPeriod]);
+  }, [selectedPeriod, orgAgents]);
 
   const fetchData = async (period: TimePeriod) => {
     setIsLoading(true);
@@ -87,9 +130,47 @@ const CallsOverview: React.FC = () => {
           startDate = subDays(today, 6); // Default to 7 days
       }
       
-      // Fetch calls data
-      const calls = await getCalls();
-      console.log("Calls data received:", calls);
+      if (!orgId) {
+        console.log("No organization ID available");
+        setIsLoading(false);
+        setCallsData([]);
+        setCallStats({
+          totalCalls: 0,
+          completedCalls: 0,
+          timeSaved: 0,
+          callsChange: 0,
+          timePeriod: {
+            start: startDate,
+            end: today
+          }
+        });
+        return;
+      }
+      
+      // Get agent IDs from the organization
+      const orgAgentIds = orgAgents.map(agent => agent.id);
+      console.log("CallsOverview: Fetching calls for org agents:", orgAgentIds);
+      
+      if (orgAgentIds.length === 0) {
+        console.log("No agents found for this organization");
+        setIsLoading(false);
+        setCallsData([]);
+        setCallStats({
+          totalCalls: 0,
+          completedCalls: 0,
+          timeSaved: 0,
+          callsChange: 0,
+          timePeriod: {
+            start: startDate,
+            end: today
+          }
+        });
+        return;
+      }
+      
+      // Fetch calls data filtered by organization's agent IDs
+      const calls = await getCalls(orgAgentIds);
+      console.log("CallsOverview: Calls data received:", calls);
       
       if (!Array.isArray(calls)) {
         console.error("Calls data is not an array:", calls);
@@ -112,7 +193,7 @@ const CallsOverview: React.FC = () => {
         return callDate >= startDate && callDate <= today;
       });
       
-      console.log(`Filtered ${filteredCalls.length} calls for the selected period`);
+      console.log(`CallsOverview: Filtered ${filteredCalls.length} calls for the selected period`);
       
       // Process calls data for chart
       processCallsData(filteredCalls, period);
@@ -304,6 +385,7 @@ const CallsOverview: React.FC = () => {
               <CardTitle>Call Volume</CardTitle>
               <CardDescription>
                 {selectedPeriod === 'today' ? 'Today\'s' : selectedPeriod === '7days' ? 'Last 7 days' : 'Last 30 days'} call activity
+                {orgAgents.length > 0 && ` for ${orgAgents.length} agent${orgAgents.length !== 1 ? 's' : ''}`}
               </CardDescription>
             </div>
             <div className="flex items-center text-muted-foreground">
