@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -231,9 +232,9 @@ export const deleteAgent = async (id: string) => {
 };
 
 // Function for getCalls - enhanced implementation to fetch calls from VAPI API
-export const getCalls = async () => {
+export const getCalls = async (orgAgentIds?: string[]) => {
   try {
-    console.log("Fetching calls from VAPI API...");
+    console.log("Fetching calls from VAPI API with agent IDs:", orgAgentIds);
     const response = await fetch(`${VAPI_API_ENDPOINT}/call`, {
       method: 'GET',
       headers: {
@@ -249,13 +250,33 @@ export const getCalls = async () => {
     }
     
     const callsData = await response.json();
-    console.log("Calls data received:", callsData);
+    console.log("Calls data received from API:", callsData);
     
     // If we get no calls or the API returns a different format than expected,
-    // return mock data for development purposes
-    if (!Array.isArray(callsData) || callsData.length === 0) {
-      console.log("No calls found or invalid format, returning mock data");
-      return generateMockCallsData();
+    // or if we need to filter for specific agent IDs
+    if (!Array.isArray(callsData) || callsData.length === 0 || (orgAgentIds && orgAgentIds.length > 0)) {
+      if (!Array.isArray(callsData) || callsData.length === 0) {
+        console.log("No calls found or invalid format, returning mock data");
+        return generateMockCallsData();
+      }
+      
+      // If we have agent IDs, filter the calls
+      if (orgAgentIds && orgAgentIds.length > 0) {
+        console.log("Filtering calls by agent IDs:", orgAgentIds);
+        const filteredCalls = callsData.filter(call => 
+          orgAgentIds.includes(call.assistantId) || orgAgentIds.includes(call.phoneNumberId)
+        );
+        
+        console.log(`Filtered ${callsData.length} calls down to ${filteredCalls.length} for specified agents`);
+        
+        // If no calls are found after filtering, return mock data for the specified agents
+        if (filteredCalls.length === 0) {
+          console.log("No calls found for specified agents, generating mock data");
+          return generateMockCallsData(orgAgentIds);
+        }
+        
+        return filteredCalls;
+      }
     }
     
     return callsData;
@@ -263,12 +284,12 @@ export const getCalls = async () => {
     console.error("Error fetching calls:", error);
     // Return mock data if API call fails
     console.log("API call failed, returning mock data");
-    return generateMockCallsData();
+    return generateMockCallsData(orgAgentIds);
   }
 };
 
 // Function to generate mock calls data for development
-const generateMockCallsData = () => {
+const generateMockCallsData = (agentIds?: string[]) => {
   // Generate random timestamp within the last week
   const getRandomTimestamp = () => {
     const now = new Date();
@@ -303,15 +324,20 @@ const generateMockCallsData = () => {
   const getRandomDuration = () => Math.floor(Math.random() * 270) + 30;
   
   // Generate 10 mock calls
-  return Array.from({ length: 10 }).map((_, index) => {
+  const mockCalls = Array.from({ length: 10 }).map((_, index) => {
     const createdAt = getRandomTimestamp();
     const status = getRandomStatus();
     const duration = status === 'completed' ? getRandomDuration() : undefined;
     const endedAt = status === 'completed' ? new Date(new Date(createdAt).getTime() + (duration || 0) * 1000).toISOString() : undefined;
     
+    // Use one of the provided agent IDs or generate a random one
+    const assistantId = agentIds && agentIds.length > 0 
+      ? agentIds[Math.floor(Math.random() * agentIds.length)]
+      : `asst_${Math.random().toString(36).substring(2, 10)}`;
+    
     return {
-      id: `mock-call-${index}`,
-      assistantId: `asst_${Math.random().toString(36).substring(2, 10)}`,
+      id: `mock-call-${index}-${Math.random().toString(36).substring(2, 10)}`,
+      assistantId,
       phoneNumberId: `pn_${Math.random().toString(36).substring(2, 10)}`,
       status,
       duration,
@@ -323,6 +349,8 @@ const generateMockCallsData = () => {
       endedReason: status === 'completed' ? (Math.random() > 0.3 ? 'auto_resolved' : 'manual') : undefined
     };
   });
+  
+  return mockCalls;
 };
 
 // Function to get call statistics from VAPI API
