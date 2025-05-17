@@ -27,6 +27,7 @@ import { formatDuration } from '@/utils/formatters';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from "@/integrations/supabase/client";
 
 interface Message {
   role: string;
@@ -57,6 +58,12 @@ interface Call {
   orgId?: string; // Added orgId property to filter calls
 }
 
+interface Agent {
+  id: string;
+  name: string;
+  org_id: string;
+}
+
 const Calls: React.FC = () => {
   const { orgId } = useAuth(); // Get the current user's org ID
   const [calls, setCalls] = useState<Call[]>([]);
@@ -65,6 +72,7 @@ const Calls: React.FC = () => {
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [newMessage, setNewMessage] = useState<string>("");
+  const [orgAgents, setOrgAgents] = useState<Agent[]>([]);
   
   // For audio player
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -79,6 +87,37 @@ const Calls: React.FC = () => {
   // Add new state for audio duration and current time
   const [audioDuration, setAudioDuration] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<number>(0);
+  
+  // Fetch agents associated with the user's organization
+  useEffect(() => {
+    const fetchOrgAgents = async () => {
+      if (!orgId) return;
+      
+      try {
+        console.log("Fetching agents for org ID:", orgId);
+        const { data: agents, error } = await supabase
+          .from('agents')
+          .select('id, name, org_id')
+          .eq('org_id', orgId);
+          
+        if (error) {
+          console.error('Error fetching organization agents:', error);
+          return;
+        }
+        
+        if (agents && agents.length > 0) {
+          console.log("Found agents for org:", agents);
+          setOrgAgents(agents);
+        } else {
+          console.log("No agents found for this organization");
+        }
+      } catch (err) {
+        console.error('Failed to fetch organization agents:', err);
+      }
+    };
+    
+    fetchOrgAgents();
+  }, [orgId]);
   
   useEffect(() => {
     const fetchCalls = async () => {
@@ -123,15 +162,32 @@ const Calls: React.FC = () => {
             };
           });
           
-          // Filter calls by the user's org ID
-          const userOrgCalls = orgId 
-            ? enhancedCalls.filter(call => !call.orgId || call.orgId === orgId) 
-            : enhancedCalls;
+          // Filter calls by agents that belong to the user's organization
+          let filteredCalls = enhancedCalls;
+          if (orgAgents && orgAgents.length > 0) {
+            const orgAgentIds = orgAgents.map(agent => agent.id);
+            console.log("Filtering calls by org agent IDs:", orgAgentIds);
+            
+            filteredCalls = enhancedCalls.filter(call => {
+              // Include calls that have an assistantId matching one of our org's agents
+              // or include calls explicitly marked with our orgId
+              const isOrgCall = call.orgId === orgId;
+              const isAgentCall = orgAgentIds.includes(call.assistantId);
+              
+              return isOrgCall || isAgentCall;
+            });
+            
+            console.log(`Filtered ${enhancedCalls.length} calls down to ${filteredCalls.length} calls for this organization`);
+          } else if (orgId) {
+            // If we have an orgId but no agents, just filter by orgId directly
+            filteredCalls = enhancedCalls.filter(call => call.orgId === orgId);
+            console.log(`No agents found, filtered to ${filteredCalls.length} calls by orgId directly`);
+          }
           
-          setCalls(userOrgCalls);
+          setCalls(filteredCalls);
           
           // Extract unique agents for filter dropdown
-          const agents = userOrgCalls
+          const agents = filteredCalls
             .map(call => ({ id: call.assistantId, name: call.agentName || 'Unknown' }))
             .filter((agent, index, self) => 
               index === self.findIndex(a => a.id === agent.id)
@@ -139,8 +195,8 @@ const Calls: React.FC = () => {
           setUniqueAgents(agents);
           
           // Select the first call by default if available
-          if (userOrgCalls.length > 0) {
-            setSelectedCall(userOrgCalls[0]);
+          if (filteredCalls.length > 0) {
+            setSelectedCall(filteredCalls[0]);
           }
         } else {
           console.error('Invalid calls data format:', callsData);
@@ -155,12 +211,12 @@ const Calls: React.FC = () => {
     };
 
     fetchCalls();
-  }, [orgId]);
+  }, [orgId, orgAgents]);
 
   // Function for playing and controlling audio
   const toggleAudio = () => {
     if (!selectedCall?.recordingUrl) {
-      toast.error("No recording available for this call");
+      console.log("No recording available for this call");
       return;
     }
 
@@ -318,17 +374,23 @@ const Calls: React.FC = () => {
     return call.previewMessage || "No message content";
   };
 
-  // Helper function to get agent name - updated to use assistantId for more reliable mapping
+  // Helper function to get agent name - updated to prioritize org agents
   const getAgentName = (assistantId?: string): string => {
     if (!assistantId) return 'AI Assistant';
     
-    // First, try to find the agent in our uniqueAgents state
+    // First, check if this is one of our organization's agents
+    const orgAgent = orgAgents.find(agent => agent.id === assistantId);
+    if (orgAgent) {
+      return orgAgent.name;
+    }
+    
+    // Then, try to find the agent in our uniqueAgents state
     const agent = uniqueAgents.find(agent => agent.id === assistantId);
     if (agent && agent.name && agent.name !== 'Unknown') {
       return agent.name;
     }
     
-    // If not found in uniqueAgents or name is 'Unknown', use our mapping
+    // If not found, use our mapping
     const agentNameMap: Record<string, string> = {
       'asst_123456': 'Restaurant Assistant',
       'asst_789012': 'Booking Agent',
