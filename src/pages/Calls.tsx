@@ -26,6 +26,7 @@ import AudioPlayer from '@/components/AudioPlayer';
 import { formatDuration } from '@/utils/formatters';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Message {
   role: string;
@@ -52,10 +53,12 @@ interface Call {
   recordingUrl?: string;
   summary?: string;
   previewMessage?: string;
-  agentName?: string; // Added agent name property
+  agentName?: string;
+  orgId?: string; // Added orgId property to filter calls
 }
 
 const Calls: React.FC = () => {
+  const { orgId } = useAuth(); // Get the current user's org ID
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,10 +123,15 @@ const Calls: React.FC = () => {
             };
           });
           
-          setCalls(enhancedCalls);
+          // Filter calls by the user's org ID
+          const userOrgCalls = orgId 
+            ? enhancedCalls.filter(call => !call.orgId || call.orgId === orgId) 
+            : enhancedCalls;
+          
+          setCalls(userOrgCalls);
           
           // Extract unique agents for filter dropdown
-          const agents = enhancedCalls
+          const agents = userOrgCalls
             .map(call => ({ id: call.assistantId, name: call.agentName || 'Unknown' }))
             .filter((agent, index, self) => 
               index === self.findIndex(a => a.id === agent.id)
@@ -131,8 +139,8 @@ const Calls: React.FC = () => {
           setUniqueAgents(agents);
           
           // Select the first call by default if available
-          if (enhancedCalls.length > 0) {
-            setSelectedCall(enhancedCalls[0]);
+          if (userOrgCalls.length > 0) {
+            setSelectedCall(userOrgCalls[0]);
           }
         } else {
           console.error('Invalid calls data format:', callsData);
@@ -147,7 +155,7 @@ const Calls: React.FC = () => {
     };
 
     fetchCalls();
-  }, []);
+  }, [orgId]);
 
   // Function for playing and controlling audio
   const toggleAudio = () => {

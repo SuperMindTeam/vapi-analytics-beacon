@@ -10,15 +10,8 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Info, AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 
-interface OrgMembership {
-  org_id: string;
-  is_default: boolean;
-  role?: string;
-}
-
 const Settings = () => {
   const { userId, orgId, user, refreshOrgId } = useAuth();
-  const [orgMemberships, setOrgMemberships] = useState<OrgMembership[]>([]);
   const [loading, setLoading] = useState(false);
   const [directOrgId, setDirectOrgId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -67,42 +60,6 @@ const Settings = () => {
     
     fetchDirectOrgData();
   }, [userId]);
-  
-  useEffect(() => {
-    const checkUserOrg = async () => {
-      if (userId) {
-        console.log("Settings page - checking user organization for:", userId);
-        setLoading(true);
-        try {
-          const { data, error } = await supabase
-            .from('org_members')
-            .select('org_id, is_default, role')
-            .eq('user_id', userId);
-          
-          if (error) {
-            console.error("Error fetching organization data:", error);
-            toast.error(`Error checking organization membership: ${error.message}`);
-          } else {
-            console.log("Organization memberships found:", data);
-            setOrgMemberships(data || []);
-            if (data?.length === 0 && userId) {
-              toast.error("No organization membership found for your account");
-            }
-          }
-        } catch (err) {
-          console.error("Error in org check:", err);
-          toast.error(`Unexpected error: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        } finally {
-          setLoading(false);
-        }
-      }
-    };
-    
-    checkUserOrg();
-  }, [userId]);
-
-  // Find default org from memberships
-  const defaultOrg = orgMemberships.find(membership => membership.is_default);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -155,48 +112,15 @@ const Settings = () => {
         </Alert>
       )}
 
-      {((defaultOrg || directOrgId) && !orgId) && (
+      {((directOrgId) && !orgId) && (
         <Alert className="mb-6">
           <Info className="h-4 w-4" />
           <AlertTitle>Organization ID Found in Database</AlertTitle>
           <AlertDescription>
-            A default organization was found in the database ({directOrgId || defaultOrg?.org_id}), but it's not loaded in the current session. 
+            A default organization was found in the database ({directOrgId}), but it's not loaded in the current session. 
             Use the 'Refresh Data' button above to reload your organization data.
           </AlertDescription>
         </Alert>
-      )}
-
-      {orgMemberships.length > 0 && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Organization Memberships</CardTitle>
-            <CardDescription>Your organization memberships from database</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {orgMemberships.map((membership, index) => (
-                <div key={index} className="p-4 border rounded-md bg-muted/50">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label className="text-xs">Organization ID</Label>
-                      <div className="font-mono text-sm truncate">{membership.org_id}</div>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Default</Label>
-                      <div>{membership.is_default ? 'Yes' : 'No'}</div>
-                    </div>
-                    {membership.role && (
-                      <div>
-                        <Label className="text-xs">Role</Label>
-                        <div className="capitalize">{membership.role}</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
       )}
 
       <div className="grid gap-6">
@@ -206,6 +130,17 @@ const Settings = () => {
             <CardDescription>View your account's unique identifiers</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Full Name</Label>
+              <Input 
+                id="fullName" 
+                value={user?.user_metadata?.name || user?.user_metadata?.full_name || 'Not available'} 
+                readOnly 
+                className="font-mono bg-muted"
+              />
+              <p className="text-xs text-muted-foreground">Your full name</p>
+            </div>
+            
             <div className="space-y-2">
               <Label htmlFor="userId">User ID</Label>
               <Input 
@@ -252,21 +187,6 @@ const Settings = () => {
                 className="font-mono bg-muted"
               />
               <p className="text-xs text-muted-foreground">Your email address</p>
-            </div>
-
-            <div className="space-y-2 pt-4">
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold">Debug Information</h3>
-                <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">Developer Only</span>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-md border text-sm font-mono">
-                <p>User ID: {userId || 'null'}</p>
-                <p>Org ID (Session): {orgId || 'null'}</p>
-                <p>Org ID (Direct DB): {directOrgId || 'null'}</p>
-                <p>Default Org: {defaultOrg?.org_id || 'null'}</p>
-                <p>Total Memberships: {orgMemberships.length}</p>
-                <p>Email: {user?.email || 'null'}</p>
-              </div>
             </div>
           </CardContent>
         </Card>
