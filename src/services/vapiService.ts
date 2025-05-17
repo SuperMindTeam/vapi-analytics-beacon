@@ -249,7 +249,7 @@ export const getCalls = async (orgAgentIds?: string[]) => {
     }
     
     const callsData = await response.json();
-    console.log("Calls data received from API:", callsData);
+    console.log(`Calls data received from API: ${callsData.length} calls`);
     
     // If the API returns an empty array or incorrect format, generate mock data
     if (!Array.isArray(callsData) || callsData.length === 0) {
@@ -260,9 +260,12 @@ export const getCalls = async (orgAgentIds?: string[]) => {
     // If we have agent IDs, filter the calls
     if (orgAgentIds && orgAgentIds.length > 0) {
       console.log("Filtering calls by agent IDs:", orgAgentIds);
-      const filteredCalls = callsData.filter(call => 
-        orgAgentIds.includes(call.assistantId) || orgAgentIds.includes(call.phoneNumberId)
-      );
+      const filteredCalls = callsData.filter(call => {
+        // Check if the call's assistantId OR phoneNumberId matches any of our agent IDs
+        const matchesAssistantId = orgAgentIds.includes(call.assistantId);
+        const matchesPhoneNumberId = orgAgentIds.includes(call.phoneNumberId);
+        return matchesAssistantId || matchesPhoneNumberId;
+      });
       
       console.log(`Filtered ${callsData.length} calls down to ${filteredCalls.length} for specified agents`);
       
@@ -327,8 +330,9 @@ const generateMockCallsData = (agentIds?: string[]) => {
     const endedAt = status === 'completed' ? new Date(new Date(createdAt).getTime() + (duration || 0) * 1000).toISOString() : undefined;
     
     // Use one of the provided agent IDs or generate a random one
+    // Distribute mock calls among all provided agent IDs
     const assistantId = agentIds && agentIds.length > 0 
-      ? agentIds[Math.floor(Math.random() * agentIds.length)]
+      ? agentIds[index % agentIds.length] // This ensures calls are distributed among all agents
       : `asst_${Math.random().toString(36).substring(2, 10)}`;
     
     return {

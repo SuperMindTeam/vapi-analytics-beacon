@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { getCalls } from '@/services/vapiService';
@@ -106,7 +107,7 @@ const Calls: React.FC = () => {
         }
         
         if (agents && agents.length > 0) {
-          console.log("Calls: Found agents for org:", agents);
+          console.log(`Calls: Found ${agents.length} agents for org:`, agents);
           setOrgAgents(agents);
         } else {
           console.log("Calls: No agents found for this organization");
@@ -149,7 +150,7 @@ const Calls: React.FC = () => {
         const callsData = await getCalls(orgAgentIds);
         
         if (Array.isArray(callsData)) {
-          console.log("Received calls data:", callsData);
+          console.log(`Received ${callsData.length} calls data:`, callsData);
           
           // Process calls data to include real messages and agent names
           const enhancedCalls = callsData.map(call => {
@@ -181,9 +182,9 @@ const Calls: React.FC = () => {
             
             return {
               ...call,
-              messages: call.messages || [],
-              previewMessage: call.previewMessage || getPreviewMessage(call, call.messages || []),
-              agentName: getAgentName(call.assistantId)
+              messages: parsedMessages,
+              previewMessage: call.previewMessage || getPreviewMessage(call, parsedMessages),
+              agentName: getAgentName(call.assistantId || call.phoneNumberId)
             };
           });
           
@@ -191,14 +192,14 @@ const Calls: React.FC = () => {
           
           // Extract unique agents for filter dropdown
           const agents = enhancedCalls
-            .map(call => ({ id: call.assistantId, name: call.agentName || 'Unknown' }))
+            .map(call => ({ id: call.assistantId || call.phoneNumberId, name: call.agentName || 'Unknown' }))
             .filter((agent, index, self) => 
               index === self.findIndex(a => a.id === agent.id)
             );
           setUniqueAgents(agents);
           
           // Select the first call by default if available
-          if (enhancedCalls.length > 0) {
+          if (enhancedCalls.length > 0 && !selectedCall) {
             setSelectedCall(enhancedCalls[0]);
           }
         } else {
