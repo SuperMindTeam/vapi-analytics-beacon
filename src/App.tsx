@@ -31,11 +31,11 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter basename="/dashboard">
         <AuthProvider>
           <Routes>
-            {/* Auth routes */}
-            <Route path="/auth" element={<AuthPage />} />
+            {/* Auth routes - now at /login instead of /auth */}
+            <Route path="/login" element={<AuthPage />} />
             
             {/* Protected dashboard routes */}
             <Route element={<ProtectedRoute />}>

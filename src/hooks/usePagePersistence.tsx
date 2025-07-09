@@ -11,7 +11,7 @@ export const usePagePersistence = () => {
   
   useEffect(() => {
     // Save current path to session storage when location changes
-    if (location.pathname !== '/auth') {
+    if (location.pathname !== '/login') {
       // For dashboard route, clear the lastPath to ensure it loads properly
       if (location.pathname === '/') {
         sessionStorage.removeItem('lastPath');
