@@ -28,10 +28,10 @@ const ProtectedRoute = () => {
     );
   }
   
-  // Force navigation to login page if not authenticated after loading
+  // Force navigation to auth page if not authenticated after loading
   if (!user) {
     // Save the current location to redirect back after login
-    return <Navigate to="/login" replace state={{ from: location }} />;
+    return <Navigate to="/auth" replace state={{ from: location }} />;
   }
   
   // When at root path ('/'), always show the dashboard
